@@ -8,8 +8,10 @@
 // All text is printable ASCII: jsPDF's built-in Helvetica only covers
 // WinAnsi, so characters like "·" or Turkish letters would break.
 
+import { formatMoney, sessionEarningsCents } from "./earnings";
 import {
   dateFromKey,
+  getMonthEarnings,
   getMonthStats,
   getSessionsInMonth,
   type LongestDay,
@@ -22,9 +24,15 @@ import {
   formatTime,
   NO_VALUE,
 } from "./time";
-import type { WorkSession } from "./types";
+import type { PaySettings, WorkSession } from "./types";
 
-export const PDF_TABLE_HEAD = ["Date", "Start", "End", "Duration"] as const;
+export const PDF_TABLE_HEAD = [
+  "Date",
+  "Start",
+  "End",
+  "Duration",
+  "Earnings",
+] as const;
 
 export const PDF_EMPTY_TEXT = "No sessions in this month.";
 
@@ -35,7 +43,7 @@ export interface PdfReport {
   /** `[label, value]` pairs for the month summary. */
   summary: [string, string][];
   head: string[];
-  /** One row per session, oldest first: Date, Start, End, Duration. */
+  /** One row per session, oldest first: Date, Start, End, Duration, Earnings. */
   body: string[][];
 }
 
@@ -56,7 +64,7 @@ function formatLongestDay(day: LongestDay | null): string {
   return `${formatDate(date)} (${formatDuration(day.totalMinutes)})`;
 }
 
-function toRow(session: WorkSession): string[] {
+function toRow(session: WorkSession, pay: PaySettings): string[] {
   const start = new Date(session.startTime);
   const end = new Date(session.endTime);
   return [
@@ -64,23 +72,28 @@ function toRow(session: WorkSession): string[] {
     formatTime(start),
     formatEndTime(start, end), // "06:00 (+1)" for a night shift
     formatDuration(session.durationMinutes),
+    formatMoney(sessionEarningsCents(session, pay.hourlyRate), pay.currency),
   ];
 }
 
 /**
  * The report's content for a `YYYY-MM` month. Pure: `now` is only used for
- * the "Generated" line. The summary reuses `getMonthStats`, the same
- * function as the dashboard's "This Month" card.
+ * the "Generated" line. The summary reuses `getMonthStats` and
+ * `getMonthEarnings`, the same functions as the dashboard's "This Month" card.
  */
 export function buildPdfReport(
   sessions: WorkSession[],
   monthKey: string,
   now: Date,
+  pay: PaySettings,
 ): PdfReport {
   const monthDate = dateFromKey(`${monthKey}-01`);
   const stats = monthDate
     ? getMonthStats(sessions, monthDate)
     : { totalMinutes: 0, workingDays: 0, averageMinutes: null, longestDay: null };
+  const earnings = monthDate
+    ? getMonthEarnings(sessions, monthDate, pay.hourlyRate)
+    : null;
 
   const body = getSessionsInMonth(sessions, monthKey)
     .filter(
@@ -88,7 +101,7 @@ export function buildPdfReport(
         !Number.isNaN(Date.parse(session.startTime)) &&
         !Number.isNaN(Date.parse(session.endTime)),
     )
-    .map(toRow);
+    .map((session) => toRow(session, pay));
 
   return {
     fileName: pdfFileName(monthKey),
@@ -99,6 +112,7 @@ export function buildPdfReport(
       ["Working days", String(stats.workingDays)],
       ["Daily average", formatAverage(stats.averageMinutes)],
       ["Longest day", formatLongestDay(stats.longestDay)],
+      ["Earnings", formatMoney(earnings, pay.currency)],
     ],
     head: [...PDF_TABLE_HEAD],
     body,
@@ -117,8 +131,9 @@ export async function exportPdf(
   sessions: WorkSession[],
   monthKey: string,
   now: Date,
+  pay: PaySettings,
 ): Promise<void> {
-  const report = buildPdfReport(sessions, monthKey, now);
+  const report = buildPdfReport(sessions, monthKey, now, pay);
 
   const [{ jsPDF }, { autoTable }] = await Promise.all([
     import("jspdf"),
@@ -169,6 +184,8 @@ export async function exportPdf(
       theme: "striped",
       styles: { font: "helvetica", fontSize: 10 },
       headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+      // Earnings: right-aligned, like money in the dashboard table.
+      columnStyles: { 4: { halign: "right" } },
     });
   }
 

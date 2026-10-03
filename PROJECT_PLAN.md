@@ -13,6 +13,7 @@
 - [x] Phase 6 — Month picker and CSV export
 - [x] Phase 7 — PDF export
 - [ ] Phase 8 — Polish and final check
+- [ ] Phase 9 — Hourly rate and earnings
 
 ---
 
@@ -20,9 +21,9 @@
 
 ## 1. Scope
 
-**Build:** start and end work sessions, a live timer, daily/weekly/monthly statistics, session history, monthly CSV and PDF export, localStorage persistence, a mobile-friendly UI.
+**Build:** start and end work sessions, a live timer, daily/weekly/monthly statistics, session history, monthly CSV and PDF export, an hourly rate with earnings (§9), localStorage persistence, a mobile-friendly UI.
 
-**Don't build unless I ask:** backend, API, database, auth, cloud sync or backup, multiple users or jobs, wage/overtime/salary calculations, editing or deleting sessions, PWA, dark mode.
+**Don't build unless I ask:** backend, API, database, auth, cloud sync or backup, multiple users or jobs, overtime rules, taxes, currency conversion, editing or deleting sessions, PWA, dark mode.
 
 ## 2. Data model
 
@@ -33,6 +34,7 @@ export interface WorkSession {
   startTime: string;       // ISO timestamp from toISOString()
   endTime: string;         // ISO timestamp
   durationMinutes: number; // Math.round((end - start) / 60_000)
+  hourlyRate?: number;     // rate when the session ended (§9); missing = use the current rate
 }
 
 export interface ActiveSession {
@@ -40,12 +42,13 @@ export interface ActiveSession {
 }
 ```
 
-Two **separate** localStorage keys:
+**Separate** localStorage keys:
 
 | Key | Value | If missing |
 |---|---|---|
 | `work_sessions` | JSON array of `WorkSession` | no sessions yet (`[]`) |
 | `active_work_session` | JSON `ActiveSession` | not working |
+| `pay_settings` | JSON `PaySettings` (§9) | no rate set, currency `TRY` |
 
 - Invalid JSON counts as missing. Invalid items inside the array are skipped; valid ones are kept. Bad data never crashes the app.
 - IDs: use `crypto.randomUUID()` when it exists, otherwise a fallback. It doesn't exist on plain-HTTP addresses, such as `http://192.168.1.20:3000` when you test on a phone.
@@ -169,6 +172,41 @@ The UI, CSV, and PDF text stays English (§4). The app must work correctly when 
 
 
 
+## 9. Hourly rate and earnings
+
+```ts
+// src/lib/types.ts
+export type Currency = "TRY" | "USD" | "EUR" | "GBP";
+export interface PaySettings {
+  hourlyRate: number | null; // null = not set yet
+  currency: Currency;
+}
+```
+
+**Settings**
+- A "Pay" card has an hourly rate input (number, ≥ 0, up to 2 decimals, max 100000) and a currency picker (TRY, USD, EUR, GBP). Default: no rate, `TRY`.
+- Save the rate with a Save button (and Enter). An invalid value shows an inline error and is not saved. The currency saves when it changes.
+- The rate can be changed any time.
+
+**Which rate a session uses**
+- When End Work creates a session and a rate is set, the session stores that rate in `hourlyRate`. A later rate change does not change it.
+- A session without `hourlyRate` (made before this feature, or while no rate was set) uses the current rate.
+- If no rate applies (no stored rate and no current rate), its earnings are unknown: show `-`, never `0` or `NaN`.
+- The currency is one global setting for display only. Changing it does not convert amounts.
+
+**Calculation**
+- Session earnings in cents: `Math.round(durationMinutes × rate × 100 / 60)`. Work in integer cents; totals are sums of session cents.
+- Totals (Today, This Week, This Month, PDF) add up the sessions that have a rate. If some sessions in the period have no rate, the total covers only the ones that do; if none do, show `-`.
+- Live while working: `Earned so far` under the timer = elapsed seconds × current rate, rounded to cents, updated with the timer. Hidden when no rate is set.
+
+**Money format** (UI, CSV, PDF): `1,250.00 TRY` — comma thousands separator, dot decimals, 2 decimals, then a space and the currency code. Built by hand, never `toLocaleString()`. Currency codes, not symbols: jsPDF's built-in font can't draw `₺`.
+
+**Where earnings show**
+- Summary cards: an `Earnings` row on Today, This Week, and This Month.
+- Session history: an `Earnings` column (table) and on each mobile row.
+- CSV: three more columns: `Date,Start Time,End Time,Duration,Duration Minutes,Hourly Rate,Earnings,Currency`. `Hourly Rate` and `Earnings` are plain numbers with 2 decimals and no thousands separator (`25.00`, `212.50`), so spreadsheets read them as numbers. Empty cells when no rate applies.
+- PDF: an `Earnings` line in the month summary, and an `Earnings` column in the table.
+
 ---
 
 # Part 2 — Phases
@@ -267,6 +305,20 @@ Tests (with a fixed `now`) must include:
 
 **Manual check on a real phone:** run `npm run build`, then `npm start`. On the same Wi-Fi, open `http://<your-PC-IP>:3000`. Repeat the Phase 3 checks, then export one CSV and one PDF.
 
+## Phase 9 — Hourly rate and earnings
+- [ ] Types from §9; `WorkSession.hourlyRate` optional and validated (finite, ≥ 0) in `storage.ts`. Old sessions without it stay valid.
+- [ ] `storage.ts`: `pay_settings` read/parse/save (pure parser with tests; invalid → defaults), included in the storage subscription.
+- [ ] `src/lib/earnings.ts` with tests: session cents, effective rate (stored vs current vs none), period totals, live earnings, `formatMoney`, CSV money format.
+- [ ] `createSession` stores the current rate when one is set.
+- [ ] `useWorkTracker` exposes pay settings and a way to save them.
+- [ ] UI: Pay card (rate + currency), `Earnings` on the cards and in history, `Earned so far` in the timer.
+- [ ] CSV and PDF columns and summary from §9, with updated tests.
+
+Tests must include: 8h 30m at 25.00 → `212.50`; rounding to the nearest cent; a session with a stored rate keeps it after the current rate changes; a session without a rate uses the current one; no rate at all → `-`; a total that mixes sessions with and without a rate; `formatMoney(125000, "TRY")` → `1,250.00 TRY`; `formatMoney(0, "USD")` → `0.00 USD`; large numbers like `1,234,567.89`.
+
+**Done when:** the four commands pass.
+**Manual checks:** set a rate → cards, history, and the live amount show earnings; change the rate → old sessions keep their amount, new ones use the new rate; CSV and PDF show the new columns and the same totals as the dashboard.
+
 ## Definition of Done
 - [ ] All phases are ticked, and the four commands pass.
 - [ ] Start and End work. The timer survives a refresh, a background tab, and a second tab.
@@ -287,6 +339,7 @@ Add a line whenever a decision changes or extends the spec.
 | 2026-10-03 | The PDF is a monthly report (month summary + sessions); no Today/This Week sections | Today and This Week don't fit a report for a past month |
 | 2026-10-03 | Vitest added (dev only) | Claude needs tests it can run to check the date logic |
 | 2026-10-03 | §8 "support Arabic, Turkish, English" means the English app works in any of those browser languages; no translated UI | Keeps the fixed formats of §4 and keeps PDF text safe for jsPDF's built-in fonts |
+| 2026-10-03 | Added hourly rate and earnings (§9, Phase 9); salary was out of scope before | Requested by the user. Each session keeps its own rate; currency codes, not symbols, so the PDF stays safe |
 
 ## Ideas (not in scope)
 Ideas that come up during the build go here, not into the code.

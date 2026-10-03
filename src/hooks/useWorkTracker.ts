@@ -6,16 +6,20 @@ import { createSession } from "@/lib/sessions";
 import {
   clearActiveSession,
   getActiveSession,
+  getPaySettings,
   getSessions,
   parseActiveSession,
+  parsePaySettings,
   parseSessions,
   readActiveSessionRaw,
+  readPaySettingsRaw,
   readSessionsRaw,
   saveActiveSession,
+  savePaySettings as storePaySettings,
   saveSessions,
   subscribeToStorage,
 } from "@/lib/storage";
-import type { ActiveSession, WorkSession } from "@/lib/types";
+import type { ActiveSession, PaySettings, WorkSession } from "@/lib/types";
 
 export type TrackerStatus = "loading" | "working" | "idle";
 
@@ -25,6 +29,10 @@ export interface WorkTracker {
   sessions: WorkSession[];
   startWork: () => void;
   endWork: () => void;
+  /** Hourly rate and currency (§9). Defaults until storage has loaded. */
+  paySettings: PaySettings;
+  /** Saves the pay settings. Returns false (and sets `error`) on failure. */
+  savePaySettings: (settings: PaySettings) => boolean;
   error: string | null;
 }
 
@@ -59,7 +67,14 @@ export function useWorkTracker(): WorkTracker {
     getRawServer,
   );
 
+  const payRaw = useSyncExternalStore(
+    subscribeToStorage,
+    readPaySettingsRaw,
+    getRawServer,
+  );
+
   const sessions = useMemo(() => parseSessions(sessionsRaw), [sessionsRaw]);
+  const paySettings = useMemo(() => parsePaySettings(payRaw), [payRaw]);
   const activeSession = useMemo(
     () => parseActiveSession(activeRaw),
     [activeRaw],
@@ -84,7 +99,12 @@ export function useWorkTracker(): WorkTracker {
       setError(null);
       return;
     }
-    const session = createSession(active, new Date());
+    // Re-read the rate now: the session keeps the rate set when it ends.
+    const session = createSession(
+      active,
+      new Date(),
+      getPaySettings().hourlyRate,
+    );
     // Save the session first, then clear the active one,
     // so a failed write can never lose a session.
     if (!saveSessions([...getSessions(), session])) {
@@ -94,8 +114,23 @@ export function useWorkTracker(): WorkTracker {
     setError(clearActiveSession() ? null : SAVE_ERROR);
   }, []);
 
+  const savePaySettings = useCallback((settings: PaySettings): boolean => {
+    const ok = storePaySettings(settings);
+    setError(ok ? null : SAVE_ERROR);
+    return ok;
+  }, []);
+
   let status: TrackerStatus = "loading";
   if (loaded) status = activeSession ? "working" : "idle";
 
-  return { status, activeSession, sessions, startWork, endWork, error };
+  return {
+    status,
+    activeSession,
+    sessions,
+    startWork,
+    endWork,
+    paySettings,
+    savePaySettings,
+    error,
+  };
 }

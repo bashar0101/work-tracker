@@ -3,10 +3,18 @@
 // Bad or missing data never throws: reads fall back to [] / null,
 // and writes return false.
 
-import type { ActiveSession, WorkSession } from "./types";
+import { DEFAULT_CURRENCY, isCurrency, MAX_HOURLY_RATE } from "./earnings";
+import type { ActiveSession, PaySettings, WorkSession } from "./types";
 
 export const SESSIONS_KEY = "work_sessions";
 export const ACTIVE_SESSION_KEY = "active_work_session";
+export const PAY_SETTINGS_KEY = "pay_settings";
+
+/** No rate set yet, currency TRY (PROJECT_PLAN.md §2, §9). */
+export const DEFAULT_PAY_SETTINGS: PaySettings = {
+  hourlyRate: null,
+  currency: DEFAULT_CURRENCY,
+};
 
 /** Dispatched on `window` after every successful write (same-tab updates). */
 export const STORAGE_CHANGE_EVENT = "work-tracker-storage";
@@ -19,11 +27,20 @@ function isDateString(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
-/** True for a complete, consistent session object. */
+function isRate(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/**
+ * True for a complete, consistent session object. `hourlyRate` is optional
+ * (older sessions don't have it); when present it must be a finite number,
+ * 0 or more.
+ */
 export function isWorkSession(value: unknown): value is WorkSession {
   if (!isRecord(value)) return false;
-  const { id, startTime, endTime, durationMinutes } = value;
+  const { id, startTime, endTime, durationMinutes, hourlyRate } = value;
   return (
+    (hourlyRate === undefined || isRate(hourlyRate)) &&
     typeof id === "string" &&
     id.length > 0 &&
     isDateString(startTime) &&
@@ -58,6 +75,7 @@ export function parseSessions(raw: string | null): WorkSession[] {
     startTime: s.startTime,
     endTime: s.endTime,
     durationMinutes: s.durationMinutes,
+    ...(s.hourlyRate !== undefined ? { hourlyRate: s.hourlyRate } : {}),
   }));
 }
 
@@ -65,6 +83,22 @@ export function parseSessions(raw: string | null): WorkSession[] {
 export function parseActiveSession(raw: string | null): ActiveSession | null {
   const data = parseJson(raw);
   return isActiveSession(data) ? { startTime: data.startTime } : null;
+}
+
+/**
+ * Stored pay settings. Each field falls back to its default on its own:
+ * a rate must be finite, 0 to MAX_HOURLY_RATE (else `null`); an unknown
+ * currency becomes TRY. Missing or invalid JSON gives the defaults.
+ */
+export function parsePaySettings(raw: string | null): PaySettings {
+  const data = parseJson(raw);
+  if (!isRecord(data)) return { ...DEFAULT_PAY_SETTINGS };
+  const { hourlyRate, currency } = data;
+  return {
+    hourlyRate:
+      isRate(hourlyRate) && hourlyRate <= MAX_HOURLY_RATE ? hourlyRate : null,
+    currency: isCurrency(currency) ? currency : DEFAULT_PAY_SETTINGS.currency,
+  };
 }
 
 function readRaw(key: string): string | null {
@@ -98,12 +132,21 @@ export function readActiveSessionRaw(): string | null {
   return readRaw(ACTIVE_SESSION_KEY);
 }
 
+/** Raw `pay_settings` string, for `useSyncExternalStore` snapshots. */
+export function readPaySettingsRaw(): string | null {
+  return readRaw(PAY_SETTINGS_KEY);
+}
+
 export function getSessions(): WorkSession[] {
   return parseSessions(readSessionsRaw());
 }
 
 export function getActiveSession(): ActiveSession | null {
   return parseActiveSession(readActiveSessionRaw());
+}
+
+export function getPaySettings(): PaySettings {
+  return parsePaySettings(readPaySettingsRaw());
 }
 
 export function saveSessions(sessions: WorkSession[]): boolean {
@@ -116,6 +159,14 @@ export function saveActiveSession(active: ActiveSession): boolean {
 
 export function clearActiveSession(): boolean {
   return write((s) => s.removeItem(ACTIVE_SESSION_KEY));
+}
+
+export function savePaySettings(settings: PaySettings): boolean {
+  const value: PaySettings = {
+    hourlyRate: settings.hourlyRate,
+    currency: settings.currency,
+  };
+  return write((s) => s.setItem(PAY_SETTINGS_KEY, JSON.stringify(value)));
 }
 
 /**

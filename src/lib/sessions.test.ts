@@ -79,6 +79,19 @@ describe("createSession", () => {
     expect(createSession(active, after(-60_000)).durationMinutes).toBe(0);
   });
 
+  it("stores the current rate when one is set (§9)", () => {
+    const session = createSession(active, after(3_600_000), 25);
+    expect(session.hourlyRate).toBe(25);
+    expect(createSession(active, after(60_000), 0).hourlyRate).toBe(0);
+  });
+
+  it("leaves hourlyRate out when no rate is set", () => {
+    const withNull = createSession(active, after(3_600_000), null);
+    const withDefault = createSession(active, after(3_600_000));
+    expect("hourlyRate" in withNull).toBe(false);
+    expect("hourlyRate" in withDefault).toBe(false);
+  });
+
   it("gives every session a unique id", () => {
     const a = createSession(active, after(60_000));
     const b = createSession(active, after(60_000));

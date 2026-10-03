@@ -8,6 +8,7 @@
 // - Periods are compared by local date keys (`YYYY-MM-DD`), so DST changes
 //   can't move a session into the wrong day, week, or month.
 
+import { totalEarningsCents } from "./earnings";
 import { sortOldestFirst } from "./sessions";
 import { startOfWeek, toDateKey, toMonthKey } from "./time";
 import type { WorkSession } from "./types";
@@ -71,24 +72,17 @@ function summarize(totals: Map<string, number>): WeekStats {
   return { totalMinutes, workingDays, averageMinutes };
 }
 
-/** Today (the local date of `now`): total minutes and number of sessions. */
-export function getTodayStats(
-  sessions: WorkSession[],
-  now: Date,
-): TodayStats {
+/** A test on a session's local date key: is it inside the period? */
+type DateKeyFilter = (dateKey: string) => boolean;
+
+/** The local date of `now`. */
+function todayFilter(now: Date): DateKeyFilter {
   const todayKey = toDateKey(now);
-  let totalMinutes = 0;
-  let sessionCount = 0;
-  for (const session of sessions) {
-    if (sessionDateKey(session) !== todayKey) continue;
-    totalMinutes += safeMinutes(session.durationMinutes);
-    sessionCount += 1;
-  }
-  return { totalMinutes, sessionCount };
+  return (key) => key === todayKey;
 }
 
 /** The Monday–Sunday local week that contains `now`. */
-export function getWeekStats(sessions: WorkSession[], now: Date): WeekStats {
+function weekFilter(now: Date): DateKeyFilter {
   const monday = startOfWeek(now);
   const nextMonday = new Date(
     monday.getFullYear(),
@@ -98,9 +92,44 @@ export function getWeekStats(sessions: WorkSession[], now: Date): WeekStats {
   // `YYYY-MM-DD` keys sort like dates, so string comparison is safe.
   const fromKey = toDateKey(monday);
   const toKey = toDateKey(nextMonday);
-  return summarize(
-    totalsByDate(sessions, (key) => key >= fromKey && key < toKey),
-  );
+  return (key) => key >= fromKey && key < toKey;
+}
+
+/** The calendar month (local time) that contains `month`. */
+function monthFilter(month: Date): DateKeyFilter {
+  const prefix = `${toMonthKey(month)}-`;
+  return (key) => key.startsWith(prefix);
+}
+
+/** Sessions whose local start date passes `include`. */
+function sessionsWhere(
+  sessions: WorkSession[],
+  include: DateKeyFilter,
+): WorkSession[] {
+  return sessions.filter((session) => {
+    const key = sessionDateKey(session);
+    return key !== null && include(key);
+  });
+}
+
+/** Today (the local date of `now`): total minutes and number of sessions. */
+export function getTodayStats(
+  sessions: WorkSession[],
+  now: Date,
+): TodayStats {
+  const include = todayFilter(now);
+  let totalMinutes = 0;
+  let sessionCount = 0;
+  for (const session of sessionsWhere(sessions, include)) {
+    totalMinutes += safeMinutes(session.durationMinutes);
+    sessionCount += 1;
+  }
+  return { totalMinutes, sessionCount };
+}
+
+/** The Monday–Sunday local week that contains `now`. */
+export function getWeekStats(sessions: WorkSession[], now: Date): WeekStats {
+  return summarize(totalsByDate(sessions, weekFilter(now)));
 }
 
 /**
@@ -114,8 +143,7 @@ export function getMonthStats(
   sessions: WorkSession[],
   month: Date,
 ): MonthStats {
-  const monthKey = toMonthKey(month);
-  const totals = totalsByDate(sessions, (key) => key.startsWith(`${monthKey}-`));
+  const totals = totalsByDate(sessions, monthFilter(month));
 
   let longestDay: LongestDay | null = null;
   for (const [dateKey, totalMinutes] of totals) {
@@ -182,5 +210,40 @@ export function getSessionsInMonth(
 ): WorkSession[] {
   return sortOldestFirst(
     sessions.filter((session) => sessionMonthKey(session) === monthKey),
+  );
+}
+
+// Earnings per period (PROJECT_PLAN.md §9). They use the same period
+// filters as the stats above, so a session always lands in the same day,
+// week, and month for both. In cents; `null` when no session in the
+// period has a rate.
+
+/** Earnings for the local date of `now`. */
+export function getTodayEarnings(
+  sessions: WorkSession[],
+  now: Date,
+  currentRate: number | null,
+): number | null {
+  return totalEarningsCents(sessionsWhere(sessions, todayFilter(now)), currentRate);
+}
+
+/** Earnings for the Monday–Sunday local week that contains `now`. */
+export function getWeekEarnings(
+  sessions: WorkSession[],
+  now: Date,
+  currentRate: number | null,
+): number | null {
+  return totalEarningsCents(sessionsWhere(sessions, weekFilter(now)), currentRate);
+}
+
+/** Earnings for the calendar month that contains `month` (also the PDF). */
+export function getMonthEarnings(
+  sessions: WorkSession[],
+  month: Date,
+  currentRate: number | null,
+): number | null {
+  return totalEarningsCents(
+    sessionsWhere(sessions, monthFilter(month)),
+    currentRate,
   );
 }

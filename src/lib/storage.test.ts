@@ -1,18 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ACTIVE_SESSION_KEY,
+  DEFAULT_PAY_SETTINGS,
+  PAY_SETTINGS_KEY,
   SESSIONS_KEY,
   STORAGE_CHANGE_EVENT,
   clearActiveSession,
   getActiveSession,
+  getPaySettings,
   getSessions,
   isActiveSession,
   isWorkSession,
   parseActiveSession,
+  parsePaySettings,
   parseSessions,
   readActiveSessionRaw,
+  readPaySettingsRaw,
   readSessionsRaw,
   saveActiveSession,
+  savePaySettings,
   saveSessions,
   subscribeToStorage,
 } from "./storage";
@@ -61,6 +67,32 @@ describe("isWorkSession", () => {
     ];
     for (const value of bad) {
       expect(isWorkSession(value)).toBe(false);
+    }
+  });
+});
+
+describe("isWorkSession hourlyRate (§9)", () => {
+  it("accepts an old session without hourlyRate", () => {
+    expect("hourlyRate" in valid).toBe(false);
+    expect(isWorkSession(valid)).toBe(true);
+  });
+
+  it("accepts a finite rate of 0 or more", () => {
+    expect(isWorkSession({ ...valid, hourlyRate: 25 })).toBe(true);
+    expect(isWorkSession({ ...valid, hourlyRate: 25.5 })).toBe(true);
+    expect(isWorkSession({ ...valid, hourlyRate: 0 })).toBe(true);
+  });
+
+  it("rejects an invalid rate", () => {
+    for (const hourlyRate of [
+      -1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      "25",
+      null,
+      {},
+    ]) {
+      expect(isWorkSession({ ...valid, hourlyRate })).toBe(false);
     }
   });
 });
@@ -125,6 +157,73 @@ describe("parseSessions", () => {
     const sessions = [valid, nightShift];
     expect(parseSessions(JSON.stringify(sessions))).toEqual(sessions);
   });
+
+  it("keeps hourlyRate when present and doesn't add it when missing", () => {
+    const withRate = { ...nightShift, hourlyRate: 25 };
+    const parsed = parseSessions(JSON.stringify([valid, withRate]));
+    expect(parsed).toEqual([valid, withRate]);
+    expect("hourlyRate" in parsed[0]).toBe(false);
+    expect(parsed[1].hourlyRate).toBe(25);
+  });
+
+  it("skips items with an invalid hourlyRate and keeps the rest", () => {
+    const raw = JSON.stringify([
+      valid,
+      { ...nightShift, hourlyRate: -5 },
+      { ...nightShift, id: "c", hourlyRate: "25" },
+      { ...nightShift, id: "d", hourlyRate: null },
+      { ...nightShift, id: "e", hourlyRate: 30 },
+    ]);
+    expect(parseSessions(raw)).toEqual([
+      valid,
+      { ...nightShift, id: "e", hourlyRate: 30 },
+    ]);
+  });
+});
+
+describe("parsePaySettings", () => {
+  it("returns the defaults for missing or invalid JSON", () => {
+    expect(DEFAULT_PAY_SETTINGS).toEqual({ hourlyRate: null, currency: "TRY" });
+    for (const raw of [null, "", "{oops", "[]", "42", '"x"', "null"]) {
+      expect(parsePaySettings(raw)).toEqual(DEFAULT_PAY_SETTINGS);
+    }
+  });
+
+  it("reads valid settings", () => {
+    expect(
+      parsePaySettings(JSON.stringify({ hourlyRate: 25.5, currency: "USD" })),
+    ).toEqual({ hourlyRate: 25.5, currency: "USD" });
+    expect(
+      parsePaySettings(JSON.stringify({ hourlyRate: 0, currency: "GBP" })),
+    ).toEqual({ hourlyRate: 0, currency: "GBP" });
+    expect(
+      parsePaySettings(JSON.stringify({ hourlyRate: 100000, currency: "EUR" })),
+    ).toEqual({ hourlyRate: 100000, currency: "EUR" });
+  });
+
+  it("falls back per field", () => {
+    expect(
+      parsePaySettings(JSON.stringify({ hourlyRate: -1, currency: "USD" })),
+    ).toEqual({ hourlyRate: null, currency: "USD" });
+    expect(
+      parsePaySettings(JSON.stringify({ hourlyRate: 100001, currency: "EUR" })),
+    ).toEqual({ hourlyRate: null, currency: "EUR" });
+    expect(
+      parsePaySettings(JSON.stringify({ hourlyRate: "25", currency: "JPY" })),
+    ).toEqual({ hourlyRate: null, currency: "TRY" });
+    expect(parsePaySettings(JSON.stringify({ hourlyRate: 20 }))).toEqual({
+      hourlyRate: 20,
+      currency: "TRY",
+    });
+    expect(parsePaySettings(JSON.stringify({ hourlyRate: null }))).toEqual(
+      DEFAULT_PAY_SETTINGS,
+    );
+  });
+
+  it("drops unknown extra fields", () => {
+    const raw = JSON.stringify({ hourlyRate: 10, currency: "USD", extra: 1 });
+    expect(parsePaySettings(raw)).toEqual({ hourlyRate: 10, currency: "USD" });
+  });
 });
 
 describe("parseActiveSession", () => {
@@ -178,6 +277,9 @@ describe("browser storage", () => {
 
   it("reads [] / null when there is no window", () => {
     expect(typeof window).toBe("undefined");
+    expect(readPaySettingsRaw()).toBeNull();
+    expect(getPaySettings()).toEqual(DEFAULT_PAY_SETTINGS);
+    expect(savePaySettings(DEFAULT_PAY_SETTINGS)).toBe(false);
     expect(readSessionsRaw()).toBeNull();
     expect(readActiveSessionRaw()).toBeNull();
     expect(getSessions()).toEqual([]);
@@ -209,6 +311,18 @@ describe("browser storage", () => {
     expect(getActiveSession()).toBeNull();
   });
 
+  it("saves and reads pay settings under their own key", () => {
+    const storage = new FakeStorage();
+    stubWindow(storage);
+    expect(getPaySettings()).toEqual(DEFAULT_PAY_SETTINGS);
+    const settings = { hourlyRate: 25, currency: "EUR" } as const;
+    expect(savePaySettings(settings)).toBe(true);
+    expect(storage.getItem(PAY_SETTINGS_KEY)).toBe(JSON.stringify(settings));
+    expect(readPaySettingsRaw()).toBe(JSON.stringify(settings));
+    expect(getPaySettings()).toEqual(settings);
+    expect(PAY_SETTINGS_KEY).toBe("pay_settings");
+  });
+
   it("uses the two separate keys", () => {
     const storage = new FakeStorage();
     stubWindow(storage);
@@ -225,7 +339,8 @@ describe("browser storage", () => {
     saveSessions([valid]);
     saveActiveSession({ startTime: valid.startTime });
     clearActiveSession();
-    expect(listener).toHaveBeenCalledTimes(3);
+    savePaySettings({ hourlyRate: 10, currency: "TRY" });
+    expect(listener).toHaveBeenCalledTimes(4);
   });
 
   it("returns false and does not throw or notify when a write fails", () => {
@@ -239,6 +354,7 @@ describe("browser storage", () => {
     expect(() => saveSessions([valid])).not.toThrow();
     expect(saveSessions([valid])).toBe(false);
     expect(saveActiveSession({ startTime: valid.startTime })).toBe(false);
+    expect(savePaySettings({ hourlyRate: 10, currency: "TRY" })).toBe(false);
     expect(listener).not.toHaveBeenCalled();
   });
 
@@ -251,6 +367,7 @@ describe("browser storage", () => {
     expect(readSessionsRaw()).toBeNull();
     expect(getSessions()).toEqual([]);
     expect(getActiveSession()).toBeNull();
+    expect(getPaySettings()).toEqual(DEFAULT_PAY_SETTINGS);
   });
 
   it("subscribes to the custom event and the storage event", () => {

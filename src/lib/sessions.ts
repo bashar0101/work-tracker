@@ -20,8 +20,17 @@ export function createId(): string {
   return `${time}-${randomA}-${randomB}`;
 }
 
-/** A completed session from the active one, ending at `now`. */
-export function createSession(active: ActiveSession, now: Date): WorkSession {
+/**
+ * A completed session from the active one, ending at `now`. When a rate is
+ * set, the session keeps it in `hourlyRate`, so a later rate change doesn't
+ * change its earnings (PROJECT_PLAN.md §9). With no rate, the field is left
+ * out and the session uses the current rate.
+ */
+export function createSession(
+  active: ActiveSession,
+  now: Date,
+  currentRate: number | null = null,
+): WorkSession {
   const startMs = Date.parse(active.startTime);
   const endMs = now.getTime();
   const diff = endMs - startMs;
@@ -33,6 +42,7 @@ export function createSession(active: ActiveSession, now: Date): WorkSession {
     startTime: active.startTime,
     endTime: now.toISOString(),
     durationMinutes,
+    ...(currentRate !== null ? { hourlyRate: currentRate } : {}),
   };
 }
 

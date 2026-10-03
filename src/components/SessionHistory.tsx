@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatMoney, sessionEarningsCents } from "@/lib/earnings";
 import { sortNewestFirst } from "@/lib/sessions";
 import {
   formatDate,
@@ -6,11 +7,14 @@ import {
   formatEndTime,
   formatTime,
 } from "@/lib/time";
-import type { WorkSession } from "@/lib/types";
+import type { Currency, WorkSession } from "@/lib/types";
 import { HistoryIcon } from "./icons";
 
 interface SessionHistoryProps {
   sessions: WorkSession[];
+  /** Used for sessions without a stored rate (§9). */
+  currentRate: number | null;
+  currency: Currency;
   loading?: boolean;
 }
 
@@ -20,9 +24,14 @@ interface HistoryRow {
   start: string;
   end: string;
   duration: string;
+  earnings: string;
 }
 
-function toRow(session: WorkSession): HistoryRow {
+function toRow(
+  session: WorkSession,
+  currentRate: number | null,
+  currency: Currency,
+): HistoryRow {
   const start = new Date(session.startTime);
   const end = new Date(session.endTime);
   return {
@@ -31,6 +40,7 @@ function toRow(session: WorkSession): HistoryRow {
     start: formatTime(start),
     end: formatEndTime(start, end),
     duration: formatDuration(session.durationMinutes),
+    earnings: formatMoney(sessionEarningsCents(session, currentRate), currency),
   };
 }
 
@@ -38,9 +48,17 @@ function toRow(session: WorkSession): HistoryRow {
 // UI only: sorting and formatting come from src/lib.
 export default function SessionHistory({
   sessions,
+  currentRate,
+  currency,
   loading = false,
 }: SessionHistoryProps) {
-  const rows = useMemo(() => sortNewestFirst(sessions).map(toRow), [sessions]);
+  const rows = useMemo(
+    () =>
+      sortNewestFirst(sessions).map((session) =>
+        toRow(session, currentRate, currency),
+      ),
+    [sessions, currentRate, currency],
+  );
 
   let content;
   if (loading) {
@@ -77,9 +95,15 @@ export default function SessionHistory({
                   {row.start} – {row.end}
                 </p>
               </div>
-              <span className="shrink-0 whitespace-nowrap rounded-lg bg-indigo-50 px-2.5 py-1 text-sm font-semibold tabular-nums text-indigo-700">
-                {row.duration}
-              </span>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <span className="whitespace-nowrap rounded-lg bg-indigo-50 px-2.5 py-1 text-sm font-semibold tabular-nums text-indigo-700">
+                  {row.duration}
+                </span>
+                <span className="whitespace-nowrap text-sm tabular-nums text-slate-600">
+                  <span className="sr-only">Earnings: </span>
+                  {row.earnings}
+                </span>
+              </div>
             </li>
           ))}
         </ul>
@@ -100,6 +124,9 @@ export default function SessionHistory({
                 <th scope="col" className="px-4 py-3 text-right font-semibold">
                   Duration
                 </th>
+                <th scope="col" className="px-4 py-3 text-right font-semibold">
+                  Earnings
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white/60">
@@ -115,6 +142,9 @@ export default function SessionHistory({
                   <td className="px-4 py-3.5 text-slate-700">{row.end}</td>
                   <td className="px-4 py-3.5 text-right font-semibold whitespace-nowrap text-slate-900">
                     {row.duration}
+                  </td>
+                  <td className="px-4 py-3.5 text-right whitespace-nowrap text-slate-700">
+                    {row.earnings}
                   </td>
                 </tr>
               ))}

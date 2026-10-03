@@ -3,9 +3,15 @@
 // Line endings are CRLF (`\r\n`), as RFC 4180 says, and the file ends with a
 // line break. Excel, Google Sheets, and Numbers all read this correctly.
 
+import {
+  effectiveRate,
+  formatCsvMoney,
+  formatCsvRate,
+  sessionEarningsCents,
+} from "./earnings";
 import { sortOldestFirst } from "./sessions";
 import { formatCsvDate, formatDuration, formatTime } from "./time";
-import type { WorkSession } from "./types";
+import type { Currency, WorkSession } from "./types";
 
 export const CSV_HEADER = [
   "Date",
@@ -13,6 +19,9 @@ export const CSV_HEADER = [
   "End Time",
   "Duration",
   "Duration Minutes",
+  "Hourly Rate",
+  "Earnings",
+  "Currency",
 ] as const;
 
 const LINE_END = "\r\n";
@@ -30,7 +39,11 @@ function toLine(fields: readonly string[]): string {
   return fields.map(escapeCsvField).join(",") + LINE_END;
 }
 
-function toRow(session: WorkSession): string[] {
+function toRow(
+  session: WorkSession,
+  currentRate: number | null,
+  currency: Currency,
+): string[] {
   const start = new Date(session.startTime);
   const end = new Date(session.endTime);
   const minutes =
@@ -43,6 +56,10 @@ function toRow(session: WorkSession): string[] {
     formatTime(end), // plain HH:mm, never "(+1)" in the CSV
     formatDuration(minutes),
     String(minutes),
+    // Plain numbers (`25.00`, `212.50`); empty cells when no rate applies.
+    formatCsvRate(effectiveRate(session, currentRate)),
+    formatCsvMoney(sessionEarningsCents(session, currentRate)),
+    currency,
   ];
 }
 
@@ -50,8 +67,13 @@ function toRow(session: WorkSession): string[] {
  * The CSV text for these sessions, oldest first. Sessions are sorted here,
  * so the input order doesn't matter. Sessions with an unreadable start or
  * end time are skipped. No sessions gives the header line only.
+ * `currentRate` is used for sessions without a stored rate (§9).
  */
-export function buildCsv(sessions: WorkSession[]): string {
+export function buildCsv(
+  sessions: WorkSession[],
+  currentRate: number | null,
+  currency: Currency,
+): string {
   let csv = toLine(CSV_HEADER);
   for (const session of sortOldestFirst(sessions)) {
     if (
@@ -60,7 +82,7 @@ export function buildCsv(sessions: WorkSession[]): string {
     ) {
       continue;
     }
-    csv += toLine(toRow(session));
+    csv += toLine(toRow(session, currentRate, currency));
   }
   return csv;
 }

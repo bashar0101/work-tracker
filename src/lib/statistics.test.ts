@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   dateFromKey,
   getDefaultMonth,
+  getMonthEarnings,
   getMonthStats,
   getSessionMonths,
   getSessionsInMonth,
+  getTodayEarnings,
   getTodayStats,
+  getWeekEarnings,
   getWeekStats,
   totalsByDate,
 } from "./statistics";
@@ -369,5 +372,50 @@ describe("month picker helpers", () => {
     expect(getSessionsInMonth([], "2026-10")).toEqual([]);
     // The input is not changed.
     expect(input).toEqual([a, c, d, b]);
+  });
+});
+
+describe("earnings per period (§9)", () => {
+  // NOW is Sat 03 Oct 2026. Week: Mon 28 Sep – Sun 04 Oct.
+  it("is null with no sessions or no rate at all", () => {
+    expect(getTodayEarnings([], NOW, 25)).toBeNull();
+    expect(getWeekEarnings([], NOW, 25)).toBeNull();
+    expect(getMonthEarnings([], NOW, 25)).toBeNull();
+    const sessions = [session(2026, 9, 3, 9, 0, 60)];
+    expect(getTodayEarnings(sessions, NOW, null)).toBeNull();
+    expect(getWeekEarnings(sessions, NOW, null)).toBeNull();
+    expect(getMonthEarnings(sessions, NOW, null)).toBeNull();
+  });
+
+  it("uses the same periods as the stats", () => {
+    const sessions = [
+      { ...session(2026, 9, 3, 9, 0, 60), hourlyRate: 10 }, // today: 10.00
+      { ...session(2026, 8, 28, 9, 0, 60), hourlyRate: 20 }, // Mon, Sep: 20.00
+      { ...session(2026, 9, 1, 9, 0, 30), hourlyRate: 40 }, // Thu: 20.00
+      { ...session(2026, 9, 5, 9, 0, 60), hourlyRate: 100 }, // next week
+      { ...session(2026, 8, 27, 9, 0, 60), hourlyRate: 100 }, // last Sun
+    ];
+    expect(getTodayEarnings(sessions, NOW, null)).toBe(1000);
+    expect(getWeekEarnings(sessions, NOW, null)).toBe(1000 + 2000 + 2000);
+    expect(getMonthEarnings(sessions, NOW, null)).toBe(1000 + 2000 + 10000);
+  });
+
+  it("counts a night shift for its start day", () => {
+    const night = { ...session(2026, 9, 2, 23, 0, 480), hourlyRate: 10 };
+    expect(getTodayEarnings([night], NOW, null)).toBeNull();
+    expect(getTodayEarnings([night], new Date(2026, 9, 2, 12), null)).toBe(
+      8000,
+    );
+  });
+
+  it("mixes stored rates, the current rate, and no rate", () => {
+    const sessions = [
+      { ...session(2026, 9, 3, 8, 0, 60), hourlyRate: 20 },
+      session(2026, 9, 3, 10, 0, 60), // no stored rate
+    ];
+    // No current rate: only the session with a stored rate counts.
+    expect(getTodayEarnings(sessions, NOW, null)).toBe(2000);
+    // A current rate applies to the session without one.
+    expect(getTodayEarnings(sessions, NOW, 50)).toBe(7000);
   });
 });

@@ -9,7 +9,8 @@ import type { WorkSession } from "./types";
 
 // Tests run in Europe/Istanbul (UTC+3), set in vitest.config.ts.
 
-const HEADER = "Date,Start Time,End Time,Duration,Duration Minutes";
+const HEADER =
+  "Date,Start Time,End Time,Duration,Duration Minutes,Hourly Rate,Earnings,Currency";
 
 let nextId = 0;
 
@@ -35,7 +36,7 @@ function session(
 
 describe("buildCsv", () => {
   it("starts with the exact header and ends with CRLF", () => {
-    const csv = buildCsv([]);
+    const csv = buildCsv([], null, "TRY");
     expect(csv).toBe(`${HEADER}\r\n`);
   });
 
@@ -43,10 +44,10 @@ describe("buildCsv", () => {
     const dayShift = session(2026, 9, 1, 9, 0, 540); // 09:00 → 18:00
     const nightShift = session(2026, 9, 2, 22, 0, 480); // 22:00 → 06:00 (+1)
     // Input is newest first; the CSV must still be oldest first.
-    expect(buildCsv([nightShift, dayShift])).toBe(
+    expect(buildCsv([nightShift, dayShift], null, "TRY")).toBe(
       `${HEADER}\r\n` +
-        "2026-10-01,09:00,18:00,9h 00m,540\r\n" +
-        "2026-10-02,22:00,06:00,8h 00m,480\r\n",
+        "2026-10-01,09:00,18:00,9h 00m,540,,,TRY\r\n" +
+        "2026-10-02,22:00,06:00,8h 00m,480,,,TRY\r\n",
     );
   });
 
@@ -54,7 +55,7 @@ describe("buildCsv", () => {
     const a = session(2026, 9, 3, 9, 0, 60);
     const b = session(2026, 9, 1, 9, 0, 60);
     const c = session(2026, 9, 2, 9, 0, 60);
-    const dates = buildCsv([a, b, c])
+    const dates = buildCsv([a, b, c], null, "TRY")
       .split("\r\n")
       .slice(1, -1)
       .map((line) => line.split(",")[0]);
@@ -65,8 +66,8 @@ describe("buildCsv", () => {
     // 03 Oct 2026 00:30 in Istanbul is 02 Oct 2026 21:30 UTC.
     const s = session(2026, 9, 3, 0, 30, 65);
     expect(s.startTime.startsWith("2026-10-02")).toBe(true);
-    expect(buildCsv([s])).toBe(
-      `${HEADER}\r\n2026-10-03,00:30,01:35,1h 05m,65\r\n`,
+    expect(buildCsv([s], null, "TRY")).toBe(
+      `${HEADER}\r\n2026-10-03,00:30,01:35,1h 05m,65,,,TRY\r\n`,
     );
   });
 
@@ -77,9 +78,42 @@ describe("buildCsv", () => {
       endTime: "nope",
       durationMinutes: Number.NaN,
     };
-    const csv = buildCsv([bad, session(2026, 9, 1, 9, 0, 0)]);
-    expect(csv).toBe(`${HEADER}\r\n2026-10-01,09:00,09:00,0h 00m,0\r\n`);
+    const csv = buildCsv([bad, session(2026, 9, 1, 9, 0, 0)], 25, "USD");
+    expect(csv).toBe(
+      `${HEADER}\r\n2026-10-01,09:00,09:00,0h 00m,0,25.00,0.00,USD\r\n`,
+    );
     expect(csv).not.toContain("NaN");
+  });
+});
+
+describe("buildCsv earnings columns (§9)", () => {
+  it("8h 30m at 25 → 25.00,212.50,TRY", () => {
+    const s = session(2026, 9, 1, 9, 0, 510);
+    expect(buildCsv([s], 25, "TRY")).toBe(
+      `${HEADER}\r\n2026-10-01,09:00,17:30,8h 30m,510,25.00,212.50,TRY\r\n`,
+    );
+  });
+
+  it("uses a session's stored rate over the current one", () => {
+    const s = { ...session(2026, 9, 1, 9, 0, 60), hourlyRate: 40 };
+    expect(buildCsv([s], 25, "EUR")).toBe(
+      `${HEADER}\r\n2026-10-01,09:00,10:00,1h 00m,60,40.00,40.00,EUR\r\n`,
+    );
+  });
+
+  it("leaves rate and earnings empty when no rate applies", () => {
+    const s = session(2026, 9, 1, 9, 0, 60);
+    expect(buildCsv([s], null, "GBP")).toBe(
+      `${HEADER}\r\n2026-10-01,09:00,10:00,1h 00m,60,,,GBP\r\n`,
+    );
+  });
+
+  it("writes big amounts without a thousands separator", () => {
+    const s = { ...session(2026, 9, 1, 9, 0, 600), hourlyRate: 1000 };
+    const line = buildCsv([s], null, "TRY").split("\r\n")[1];
+    expect(line).toBe(
+      "2026-10-01,09:00,19:00,10h 00m,600,1000.00,10000.00,TRY",
+    );
   });
 });
 

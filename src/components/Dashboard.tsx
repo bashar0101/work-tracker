@@ -5,15 +5,20 @@ import { useWorkTracker } from "@/hooks/useWorkTracker";
 import {
   dateFromKey,
   getDefaultMonth,
+  getMonthEarnings,
   getMonthStats,
   getSessionMonths,
   getSessionsInMonth,
+  getTodayEarnings,
   getTodayStats,
+  getWeekEarnings,
   getWeekStats,
   type LongestDay,
 } from "@/lib/statistics";
 import { buildCsv, csvFileName, downloadCsv } from "@/lib/exportCsv";
 import { exportPdf } from "@/lib/exportPdf";
+import { formatMoney } from "@/lib/earnings";
+import type { Currency } from "@/lib/types";
 import { formatDate, formatDuration, NO_VALUE } from "@/lib/time";
 import ExportControls from "./ExportControls";
 import {
@@ -23,6 +28,7 @@ import {
   ClockIcon,
   SunIcon,
 } from "./icons";
+import PayCard from "./PayCard";
 import SessionHistory from "./SessionHistory";
 import StatusCard from "./StatusCard";
 import SummaryCard from "./SummaryCard";
@@ -65,8 +71,17 @@ function formatLongestDay(day: LongestDay | null): string {
 }
 
 export default function Dashboard() {
-  const { status, activeSession, sessions, startWork, endWork, error } =
-    useWorkTracker();
+  const {
+    status,
+    activeSession,
+    sessions,
+    startWork,
+    endWork,
+    paySettings,
+    savePaySettings,
+    error,
+  } = useWorkTracker();
+  const { hourlyRate, currency } = paySettings;
 
   const minute = useSyncExternalStore(
     subscribeToMinute,
@@ -80,8 +95,11 @@ export default function Dashboard() {
       today: getTodayStats(sessions, now),
       week: getWeekStats(sessions, now),
       month: getMonthStats(sessions, now),
+      todayEarnings: getTodayEarnings(sessions, now, hourlyRate),
+      weekEarnings: getWeekEarnings(sessions, now, hourlyRate),
+      monthEarnings: getMonthEarnings(sessions, now, hourlyRate),
     };
-  }, [sessions, minute]);
+  }, [sessions, minute, hourlyRate]);
 
   // Month picker (§7). The user's pick wins while it still has sessions;
   // otherwise the default rule applies. Derived during render, no effects.
@@ -95,7 +113,7 @@ export default function Dashboard() {
   function handleExportCsv(): void {
     if (exportMonth === null) return;
     downloadCsv(
-      buildCsv(getSessionsInMonth(sessions, exportMonth)),
+      buildCsv(getSessionsInMonth(sessions, exportMonth), hourlyRate, currency),
       csvFileName(exportMonth),
     );
   }
@@ -110,13 +128,21 @@ export default function Dashboard() {
     setPdfError(null);
     try {
       // Reading the clock in an event handler is fine (not during render).
-      await exportPdf(sessions, exportMonth, new Date());
+      await exportPdf(sessions, exportMonth, new Date(), paySettings);
     } catch (err) {
       console.error("PDF export failed", err);
       setPdfError("Could not create the PDF. Please try again.");
     } finally {
       setPdfBusy(false);
     }
+  }
+
+  function handleSaveRate(rate: number): boolean {
+    return savePaySettings({ ...paySettings, hourlyRate: rate });
+  }
+
+  function handleChangeCurrency(next: Currency): void {
+    savePaySettings({ ...paySettings, currency: next });
   }
 
   function handleSelectMonth(monthKey: string): void {
@@ -154,7 +180,12 @@ export default function Dashboard() {
         </header>
 
         <div className="flex flex-col gap-4">
-          <StatusCard status={status} activeSession={activeSession} />
+          <StatusCard
+            status={status}
+            activeSession={activeSession}
+            hourlyRate={hourlyRate}
+            currency={currency}
+          />
           <WorkControls status={status} onStart={startWork} onEnd={endWork} />
           {error && (
             <p
@@ -178,6 +209,10 @@ export default function Dashboard() {
                 value: formatDuration(stats.today.totalMinutes),
               },
               { label: "Sessions", value: String(stats.today.sessionCount) },
+              {
+                label: "Earnings",
+                value: formatMoney(stats.todayEarnings, currency),
+              },
             ]}
           />
           <SummaryCard
@@ -193,6 +228,10 @@ export default function Dashboard() {
               {
                 label: "Daily average",
                 value: formatAverage(stats.week.averageMinutes),
+              },
+              {
+                label: "Earnings",
+                value: formatMoney(stats.weekEarnings, currency),
               },
             ]}
           />
@@ -217,9 +256,23 @@ export default function Dashboard() {
                 label: "Longest day",
                 value: formatLongestDay(stats.month.longestDay),
               },
+              {
+                label: "Earnings",
+                value: formatMoney(stats.monthEarnings, currency),
+              },
             ]}
           />
         </div>
+
+        {/* Keyed on the saved rate: the input starts over when it changes. */}
+        <PayCard
+          key={hourlyRate === null ? "no-rate" : String(hourlyRate)}
+          hourlyRate={hourlyRate}
+          currency={currency}
+          onSaveRate={handleSaveRate}
+          onChangeCurrency={handleChangeCurrency}
+          loading={status === "loading"}
+        />
 
         <ExportControls
           months={months}
@@ -232,7 +285,12 @@ export default function Dashboard() {
           loading={status === "loading"}
         />
 
-        <SessionHistory sessions={sessions} loading={status === "loading"} />
+        <SessionHistory
+          sessions={sessions}
+          currentRate={hourlyRate}
+          currency={currency}
+          loading={status === "loading"}
+        />
       </main>
     </div>
   );

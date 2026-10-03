@@ -1,19 +1,27 @@
 import type { ReactNode } from "react";
 import type { TrackerStatus } from "@/hooks/useWorkTracker";
 import { formatTime } from "@/lib/time";
-import type { ActiveSession } from "@/lib/types";
+import type { ActiveSession, Currency } from "@/lib/types";
 import { ClockIcon } from "./icons";
 import Timer from "./Timer";
 
 interface StatusCardProps {
   status: TrackerStatus;
   activeSession: ActiveSession | null;
+  /** Current hourly rate for "Earned so far". `null` hides it. */
+  hourlyRate: number | null;
+  currency: Currency;
 }
 
 const CARD =
   "relative overflow-hidden rounded-3xl p-6 text-center ring-1 transition-colors duration-500 sm:p-8";
 
-export default function StatusCard({ status, activeSession }: StatusCardProps) {
+export default function StatusCard({
+  status,
+  activeSession,
+  hourlyRate,
+  currency,
+}: StatusCardProps) {
   let content: ReactNode;
   let tone: string;
 
@@ -42,7 +50,11 @@ export default function StatusCard({ status, activeSession }: StatusCardProps) {
           </span>
           WORKING
         </p>
-        <Timer startTime={activeSession.startTime} />
+        <Timer
+          startTime={activeSession.startTime}
+          hourlyRate={hourlyRate}
+          currency={currency}
+        />
         <p className="inline-flex items-center gap-1.5 text-sm text-slate-600">
           <ClockIcon className="size-4 text-emerald-600" />
           Started at {formatTime(new Date(activeSession.startTime))}

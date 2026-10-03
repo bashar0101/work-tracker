@@ -3,8 +3,16 @@ export interface WorkSession {
   startTime: string; // ISO timestamp from toISOString()
   endTime: string; // ISO timestamp
   durationMinutes: number; // Math.round((end - start) / 60_000)
+  hourlyRate?: number; // rate when the session ended (§9); missing = use the current rate
 }
 
 export interface ActiveSession {
   startTime: string; // ISO timestamp
+}
+
+export type Currency = "TRY" | "USD" | "EUR" | "GBP";
+
+export interface PaySettings {
+  hourlyRate: number | null; // null = not set yet
+  currency: Currency;
 }
