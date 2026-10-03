@@ -6,12 +6,12 @@
 
 ## Progress
 - [x] Phase 1 — Project setup and time helpers
-- [ ] Phase 2 — Storage layer
-- [ ] Phase 3 — Start, end, and live timer
-- [ ] Phase 4 — Statistics
-- [ ] Phase 5 — Session history
-- [ ] Phase 6 — Month picker and CSV export
-- [ ] Phase 7 — PDF export
+- [x] Phase 2 — Storage layer
+- [x] Phase 3 — Start, end, and live timer
+- [x] Phase 4 — Statistics
+- [x] Phase 5 — Session history
+- [x] Phase 6 — Month picker and CSV export
+- [x] Phase 7 — PDF export
 - [ ] Phase 8 — Polish and final check
 
 ---
@@ -191,23 +191,23 @@ Tests must include:
 **Done when:** the four commands pass, and http://localhost:3000 shows a page titled "Work Hours Tracker".
 
 ## Phase 2 — Storage layer
-- [ ] `src/lib/storage.ts`: `getSessions`, `saveSessions`, `getActiveSession`, `saveActiveSession`, `clearActiveSession`, plus readers that return the raw stored strings (the hook needs them in Phase 3).
-- [ ] Parsing and validation are pure functions (for example `parseSessions(raw: string | null)`), so they can be tested without a browser.
-- [ ] Writes catch errors and return success or failure. They never throw into the UI.
-- [ ] After every write, dispatch a custom `window` event, so the same tab can update. (The `storage` event only fires in other tabs.)
+- [x] `src/lib/storage.ts`: `getSessions`, `saveSessions`, `getActiveSession`, `saveActiveSession`, `clearActiveSession`, plus readers that return the raw stored strings (the hook needs them in Phase 3).
+- [x] Parsing and validation are pure functions (for example `parseSessions(raw: string | null)`), so they can be tested without a browser.
+- [x] Writes catch errors and return success or failure. They never throw into the UI.
+- [x] After every write, dispatch a custom `window` event, so the same tab can update. (The `storage` event only fires in other tabs.)
 
 Tests must include: `null`, empty string, invalid JSON, JSON that is not an array, an array with some invalid items (the valid ones are kept), and a valid round trip.
 
 **Done when:** the four commands pass.
 
 ## Phase 3 — Start, end, and live timer
-- [ ] `src/lib/sessions.ts` with tests: `createSession(active, now)` and the ID helper from §2. Cover duration rounding and a session that crosses midnight.
-- [ ] `src/hooks/useWorkTracker.ts`:
+- [x] `src/lib/sessions.ts` with tests: `createSession(active, now)` and the ID helper from §2. Cover duration rounding and a session that crosses midnight.
+- [x] `src/hooks/useWorkTracker.ts`:
   - Reads storage with `useSyncExternalStore`. The server snapshot means "not loaded yet", and it must be different from "storage is empty".
   - `getSnapshot` returns the raw stored strings (stable values). Parse them with `useMemo`. If `getSnapshot` returns a new object on every call, React re-renders forever.
   - Subscribes to the `storage` event (other tabs) and to the custom event from Phase 2 (same tab).
   - Returns `status` (`loading` | `working` | `idle`), `activeSession`, `sessions`, `startWork`, `endWork`, and `error`.
-- [ ] Components: `Dashboard` (`"use client"`), `StatusCard`, `Timer`, `WorkControls`.
+- [x] Components: `Dashboard` (`"use client"`), `StatusCard`, `Timer`, `WorkControls`.
 
 **Done when:** the four commands pass.
 
@@ -220,9 +220,9 @@ Tests must include: `null`, empty string, invalid JSON, JSON that is not an arra
 6. Leave the tab in the background for 2+ minutes → the timer is correct when you come back.
 
 ## Phase 4 — Statistics
-- [ ] `src/lib/statistics.ts` with tests, following §5. Functions take `sessions` and `now`. The monthly function takes the month to report on, so the PDF can reuse it.
-- [ ] `SummaryCard` and the three cards: Today, This Week, This Month.
-- [ ] Update the cards' `now` every minute, so "Today" changes at midnight while the page stays open.
+- [x] `src/lib/statistics.ts` with tests, following §5. Functions take `sessions` and `now`. The monthly function takes the month to report on, so the PDF can reuse it.
+- [x] `SummaryCard` and the three cards: Today, This Week, This Month.
+- [x] Update the cards' `now` every minute, so "Today" changes at midnight while the page stays open.
 
 Tests (with a fixed `now`) must include:
 - No sessions → zero totals, 0 working days, `-` average, no `NaN`.
@@ -237,24 +237,24 @@ Tests (with a fixed `now`) must include:
 **Manual check:** the cards update right after End Work.
 
 ## Phase 5 — Session history
-- [ ] `SessionHistory` following §4 and §6: newest first, `(+1)` for sessions that end on a later day, a table from `md`, stacked rows on small screens, and the empty state.
+- [x] `SessionHistory` following §4 and §6: newest first, `(+1)` for sessions that end on a later day, a table from `md`, stacked rows on small screens, and the empty state.
 
 **Done when:** the four commands pass.
 **Manual checks:** load 5+ sessions with a console snippet (one of them across midnight) → order, formats, and `(+1)` are correct. At 375px width there is no horizontal scroll.
 
 ## Phase 6 — Month picker and CSV export
-- [ ] Month list helper in `src/lib/statistics.ts` with tests: only months with sessions, newest first, default rule from §7.
-- [ ] `src/lib/exportCsv.ts`: a pure `buildCsv(sessions)` with tests (exact header, oldest first, a night-shift row, §4 formats), plus the download helper.
-- [ ] `ExportControls`: month picker, Export CSV, Export PDF (disabled until Phase 7), and the empty state.
+- [x] Month list helper in `src/lib/statistics.ts` with tests: only months with sessions, newest first, default rule from §7.
+- [x] `src/lib/exportCsv.ts`: a pure `buildCsv(sessions)` with tests (exact header, oldest first, a night-shift row, §4 formats), plus the download helper.
+- [x] `ExportControls`: month picker, Export CSV, Export PDF (disabled until Phase 7), and the empty state.
 
 **Done when:** the four commands pass.
 **Manual checks:** the file is named `work-sessions-YYYY-MM.csv` for the chosen month; the columns are correct in Google Sheets or Excel; the download works on a phone. (If Excel puts everything in one column, your system's list separator is `;`. Import with Data → From Text/CSV; don't change the file format.)
 
 ## Phase 7 — PDF export
-- [ ] `npm install jspdf jspdf-autotable`
-- [ ] `src/lib/exportPdf.ts`: load `jspdf` and `jspdf-autotable` with dynamic `import()` inside the export function. This keeps them off the server and out of the first page load. Use the function form: `autoTable(doc, { ... })`.
-- [ ] Content and file name from §7. Reuse the statistics functions and `time.ts` formatters; no new calculations.
-- [ ] Catch errors and show them inline.
+- [x] `npm install jspdf jspdf-autotable`
+- [x] `src/lib/exportPdf.ts`: load `jspdf` and `jspdf-autotable` with dynamic `import()` inside the export function. This keeps them off the server and out of the first page load. Use the function form: `autoTable(doc, { ... })`.
+- [x] Content and file name from §7. Reuse the statistics functions and `time.ts` formatters; no new calculations.
+- [x] Catch errors and show them inline.
 
 **Done when:** the four commands pass.
 **Manual checks:** the PDF opens; its numbers match the dashboard for the same month; a month with 40+ sessions continues cleanly onto page 2; the download works on a phone.

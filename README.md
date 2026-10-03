@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Work Hours Tracker
 
-## Getting Started
+A single-page web app for tracking your work sessions.
 
-First, run the development server:
+- Start and end a work session, with a live timer.
+- See daily, weekly, and monthly statistics.
+- See your session history.
+- Export a month as CSV or PDF.
+
+## Your data stays in your browser
+
+There is no backend, no account, and no server storage. All data lives in
+your browser's `localStorage` (keys `work_sessions` and
+`active_work_session`). Clearing your browser's site data deletes it.
+Exports are created in the browser too.
+
+## Commands
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install     # install dependencies
+npm run dev     # dev server on http://localhost:3000
+npm test        # unit tests (vitest run)
+npm run lint    # ESLint
+npx tsc --noEmit  # type check
+npm run build   # production build
+npm start       # run the production build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Next.js (App Router), React, TypeScript, Tailwind CSS v4, jsPDF with
+jspdf-autotable for the PDF, and Vitest for tests.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The spec and build plan are in `PROJECT_PLAN.md`. Rules for working on the
+code are in `CLAUDE.md`.
