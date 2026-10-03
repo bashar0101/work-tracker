@@ -43,7 +43,7 @@ export default function Timer({ startTime }: TimerProps) {
     <p
       role="timer"
       aria-live="off"
-      className="font-mono text-5xl font-semibold tabular-nums tracking-tight text-gray-900 sm:text-6xl"
+      className="font-mono text-5xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-7xl"
     >
       {formatTimer(elapsedMs)}
     </p>
