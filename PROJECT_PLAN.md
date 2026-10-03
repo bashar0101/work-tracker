@@ -5,7 +5,7 @@
 - Rules for code, tests, and workflow are in `CLAUDE.md`.
 
 ## Progress
-- [ ] Phase 1 — Project setup and time helpers
+- [x] Phase 1 — Project setup and time helpers
 - [ ] Phase 2 — Storage layer
 - [ ] Phase 3 — Start, end, and live timer
 - [ ] Phase 4 — Statistics
@@ -176,11 +176,11 @@ The UI, CSV, and PDF text stays English (§4). The app must work correctly when 
 Every phase ends the same way (see CLAUDE.md → Workflow): `npm test`, `npm run lint`, `npx tsc --noEmit`, and `npm run build` pass → manual checks → stop and wait for my OK.
 
 ## Phase 1 — Project setup and time helpers
-- [ ] If there is no `package.json`, scaffold with create-next-app: TypeScript, ESLint, Tailwind, App Router, `src/` directory, `@/*` alias, AGENTS.md, npm. Pass every option as a flag plus `--yes`, so it never waits for input. This folder already has files, so scaffold into a temporary folder and move the result here. Keep this `CLAUDE.md`: the generated one only contains `@AGENTS.md`, which this file already imports.
-- [ ] Remove the template's demo content from `page.tsx` and `globals.css`, including its dark-mode color variables. Dark mode is out of scope, and those variables make text hard to read on phones that use dark mode.
-- [ ] Install Vitest and add the script `"test": "vitest run"`. Set `TZ` to `Europe/Istanbul` in the Vitest config, not in the npm script (inline env vars don't work in npm scripts on Windows). A non-UTC time zone makes UTC-vs-local bugs fail the tests.
-- [ ] `src/lib/types.ts` with the interfaces from §2.
-- [ ] `src/lib/time.ts` with tests: local date key, start of day/week/month, and every formatter from §4.
+- [x] If there is no `package.json`, scaffold with create-next-app: TypeScript, ESLint, Tailwind, App Router, `src/` directory, `@/*` alias, AGENTS.md, npm. Pass every option as a flag plus `--yes`, so it never waits for input. This folder already has files, so scaffold into a temporary folder and move the result here. Keep this `CLAUDE.md`: the generated one only contains `@AGENTS.md`, which this file already imports.
+- [x] Remove the template's demo content from `page.tsx` and `globals.css`, including its dark-mode color variables. Dark mode is out of scope, and those variables make text hard to read on phones that use dark mode.
+- [x] Install Vitest and add the script `"test": "vitest run"`. Set `TZ` to `Europe/Istanbul` in the Vitest config, not in the npm script (inline env vars don't work in npm scripts on Windows). A non-UTC time zone makes UTC-vs-local bugs fail the tests.
+- [x] `src/lib/types.ts` with the interfaces from §2.
+- [x] `src/lib/time.ts` with tests: local date key, start of day/week/month, and every formatter from §4.
 
 Tests must include:
 - 00:30 local time gets that day's key, not the previous day (which UTC would give).
