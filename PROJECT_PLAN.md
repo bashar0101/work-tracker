@@ -12,9 +12,9 @@
 - [x] Phase 5 — Session history
 - [x] Phase 6 — Month picker and CSV export
 - [x] Phase 7 — PDF export
-- [ ] Phase 8 — Polish and final check
-- [ ] Phase 9 — Hourly rate and earnings
-- [ ] Phase 10 — Hour targets, progress, and pace
+- [x] Phase 8 — Polish and final check
+- [x] Phase 9 — Hourly rate and earnings
+- [x] Phase 10 — Hour targets, progress, and pace
 
 ---
 
@@ -350,21 +350,21 @@ Tests (with a fixed `now`) must include:
 **Manual checks:** the PDF opens; its numbers match the dashboard for the same month; a month with 40+ sessions continues cleanly onto page 2; the download works on a phone.
 
 ## Phase 8 — Polish and final check
-- [ ] Review every empty state and error message (§3, §6).
-- [ ] Check the layout at 375px, 768px, and 1280px.
-- [ ] Remove unused code, files, and dependencies. No errors or warnings in the browser console.
-- [ ] Go through the Definition of Done.
+- [x] Review every empty state and error message (§3, §6).
+- [x] Check the layout at 375px, 768px, and 1280px.
+- [x] Remove unused code, files, and dependencies. No errors or warnings in the browser console.
+- [x] Go through the Definition of Done.
 
 **Manual check on a real phone:** run `npm run build`, then `npm start`. On the same Wi-Fi, open `http://<your-PC-IP>:3000`. Repeat the Phase 3 checks, then export one CSV and one PDF.
 
 ## Phase 9 — Hourly rate and earnings
-- [ ] Types from §9; `WorkSession.hourlyRate` optional and validated (finite, ≥ 0) in `storage.ts`. Old sessions without it stay valid.
-- [ ] `storage.ts`: `pay_settings` read/parse/save (pure parser with tests; invalid → defaults), included in the storage subscription.
-- [ ] `src/lib/earnings.ts` with tests: session cents, effective rate (stored vs current vs none), period totals, live earnings, `formatMoney`, CSV money format.
-- [ ] `createSession` stores the current rate when one is set.
-- [ ] `useWorkTracker` exposes pay settings and a way to save them.
-- [ ] UI: Pay card (rate + currency), `Earnings` on the cards and in history, `Earned so far` in the timer.
-- [ ] CSV and PDF columns and summary from §9, with updated tests.
+- [x] Types from §9; `WorkSession.hourlyRate` optional and validated (finite, ≥ 0) in `storage.ts`. Old sessions without it stay valid.
+- [x] `storage.ts`: `pay_settings` read/parse/save (pure parser with tests; invalid → defaults), included in the storage subscription.
+- [x] `src/lib/earnings.ts` with tests: session cents, effective rate (stored vs current vs none), period totals, live earnings, `formatMoney`, CSV money format.
+- [x] `createSession` stores the current rate when one is set.
+- [x] `useWorkTracker` exposes pay settings and a way to save them.
+- [x] UI: Pay card (rate + currency), `Earnings` on the cards and in history, `Earned so far` in the timer.
+- [x] CSV and PDF columns and summary from §9, with updated tests.
 
 Tests must include: 8h 30m at 25.00 → `212.50`; rounding to the nearest cent; a session with a stored rate keeps it after the current rate changes; a session without a rate uses the current one; no rate at all → `-`; a total that mixes sessions with and without a rate; `formatMoney(125000, "TRY")` → `1,250.00 TRY`; `formatMoney(0, "USD")` → `0.00 USD`; large numbers like `1,234,567.89`.
 
@@ -372,11 +372,11 @@ Tests must include: 8h 30m at 25.00 → `212.50`; rounding to the nearest cent; 
 **Manual checks:** set a rate → cards, history, and the live amount show earnings; change the rate → old sessions keep their amount, new ones use the new rate; CSV and PDF show the new columns and the same totals as the dashboard.
 
 ## Phase 10 — Hour targets, progress, and pace
-- [ ] `WorkTargets` type from §10. `daysInMonth` in `time.ts` with tests.
-- [ ] `storage.ts`: `work_targets` read/parse/save (pure parser with tests; invalid → defaults, field by field), included in the storage subscription.
-- [ ] `src/lib/progress.ts` with tests: targets per period, progress, automatic days off, pace, input parsers, and formatters.
-- [ ] `useWorkTracker` exposes the targets and a way to save them.
-- [ ] UI: `ProgressCard` (three bars + pace) and `TargetsCard` (settings).
+- [x] `WorkTargets` type from §10. `daysInMonth` in `time.ts` with tests.
+- [x] `storage.ts`: `work_targets` read/parse/save (pure parser with tests; invalid → defaults, field by field), included in the storage subscription.
+- [x] `src/lib/progress.ts` with tests: targets per period, progress, automatic days off, pace, input parsers, and formatters.
+- [x] `useWorkTracker` exposes the targets and a way to save them.
+- [x] UI: `ProgressCard` (three bars + pace) and `TargetsCard` (settings).
 
 Tests must include:
 - Monthly target with defaults: 28 days → 260h, 30 → 280h, 31 → 290h, Feb 2028 (leap year) → 270h.
@@ -419,3 +419,42 @@ Add a line whenever a decision changes or extends the spec.
 Ideas that come up during the build go here, not into the code.
 - Delete or edit a session (fix a forgotten End Work or an accidental start).
 - Backup and restore all data as a JSON file.
+
+### Toward a paid product (SaaS)
+Most of these need a backend, which the Hard rules in `CLAUDE.md` forbid today. Starting them means changing that rule on purpose, in a new version.
+
+**Must-haves for companies**
+- Accounts and roles: employee, manager, admin. Company sign-up and invite by email.
+- Cloud sync across devices, so data survives a cleared browser.
+- Edit and delete sessions, with an audit log (who changed what, and when).
+- Approval flow: the employee submits a week or month; the manager approves or rejects it.
+- Leave requests and a team calendar (turns "days off" into real requests).
+- Payroll export per employee in the format accountants use.
+
+**Worth paying for**
+- Overtime rules by country, e.g. Turkey: 45h normal week, overtime at +50%. Check the exact rules with a local accountant or lawyer.
+- Team dashboard: who is working now, who is behind on pace, who has missed days.
+- Alerts: forgot to end a session, falling behind, overtime limit almost reached.
+- Location or QR check-in to prove on-site presence.
+- Kiosk mode: one shared tablet, employees check in with a PIN.
+- Shifts and schedules: planned vs. actual hours, late arrivals, early leaves.
+- Projects and clients: hours and earnings per project, invoice export.
+
+**Positioning**
+- Niche: industries with long shifts (security, hospitals, factories, restaurants, construction).
+- Turkish and Arabic markets: translated UI (right-to-left Arabic), local labor law, local currency, local payroll exports.
+- Simple, mobile-first, and cheap for small businesses with 5–30 staff.
+
+**Business model**
+- Free: one person, local only (this app).
+- Team (about $2–4 per user per month): sync, manager dashboard, approvals, exports.
+- Business (about $5–8 per user per month): overtime rules, check-in, kiosk mode, payroll integrations.
+- 14-day free trial; discount for yearly billing.
+
+**Path**
+1. Polish the personal app, add JSON backup/restore, get 10–20 real users.
+2. Talk to 5–10 small business owners in the niche before building a backend.
+3. MVP SaaS: accounts, sync, team dashboard, audit log, monthly approval, payroll export. Use a managed backend (e.g. Supabase or Firebase).
+4. Grow with what paying customers ask for.
+
+**Legal:** storing employee data on a server brings privacy laws into play (KVKK in Turkey, GDPR in Europe). A privacy policy and secure storage are needed from day one.
