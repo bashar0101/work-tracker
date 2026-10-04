@@ -5,6 +5,7 @@ import {
   PAY_SETTINGS_KEY,
   SESSIONS_KEY,
   STORAGE_CHANGE_EVENT,
+  WORK_TARGETS_KEY,
   clearActiveSession,
   getActiveSession,
   getPaySettings,
@@ -14,12 +15,15 @@ import {
   parseActiveSession,
   parsePaySettings,
   parseSessions,
+  parseWorkTargets,
   readActiveSessionRaw,
   readPaySettingsRaw,
   readSessionsRaw,
+  readWorkTargetsRaw,
   saveActiveSession,
   savePaySettings,
   saveSessions,
+  saveWorkTargets,
   subscribeToStorage,
 } from "./storage";
 import type { WorkSession } from "./types";
@@ -226,6 +230,45 @@ describe("parsePaySettings", () => {
   });
 });
 
+describe("parseWorkTargets (§10)", () => {
+  const defaults = { dailyHours: 10, daysOffPerMonth: 2 };
+
+  it("returns 10h / 2 days off for missing or invalid JSON", () => {
+    for (const raw of [null, "", "{oops", "[]", "42", '"x"', "null"]) {
+      expect(parseWorkTargets(raw)).toEqual(defaults);
+    }
+  });
+
+  it("reads valid targets", () => {
+    expect(
+      parseWorkTargets(JSON.stringify({ dailyHours: 8.5, daysOffPerMonth: 4 })),
+    ).toEqual({ dailyHours: 8.5, daysOffPerMonth: 4 });
+    expect(
+      parseWorkTargets(JSON.stringify({ dailyHours: 24, daysOffPerMonth: 0 })),
+    ).toEqual({ dailyHours: 24, daysOffPerMonth: 0 });
+  });
+
+  it("falls back per field", () => {
+    expect(
+      parseWorkTargets(JSON.stringify({ dailyHours: 0, daysOffPerMonth: 3 })),
+    ).toEqual({ dailyHours: 10, daysOffPerMonth: 3 });
+    expect(
+      parseWorkTargets(JSON.stringify({ dailyHours: 9, daysOffPerMonth: 1.5 })),
+    ).toEqual({ dailyHours: 9, daysOffPerMonth: 2 });
+    expect(
+      parseWorkTargets(JSON.stringify({ dailyHours: "9", daysOffPerMonth: 11 })),
+    ).toEqual(defaults);
+    expect(
+      parseWorkTargets(JSON.stringify({ dailyHours: 25, daysOffPerMonth: -1 })),
+    ).toEqual(defaults);
+  });
+
+  it("drops unknown extra fields", () => {
+    const raw = JSON.stringify({ dailyHours: 9, daysOffPerMonth: 3, extra: 1 });
+    expect(parseWorkTargets(raw)).toEqual({ dailyHours: 9, daysOffPerMonth: 3 });
+  });
+});
+
 describe("parseActiveSession", () => {
   it("returns null for null, empty, and invalid JSON", () => {
     expect(parseActiveSession(null)).toBeNull();
@@ -323,6 +366,17 @@ describe("browser storage", () => {
     expect(PAY_SETTINGS_KEY).toBe("pay_settings");
   });
 
+  it("saves and reads work targets under their own key", () => {
+    const storage = new FakeStorage();
+    stubWindow(storage);
+    expect(readWorkTargetsRaw()).toBeNull();
+    const targets = { dailyHours: 8, daysOffPerMonth: 4 };
+    expect(saveWorkTargets(targets)).toBe(true);
+    expect(storage.getItem(WORK_TARGETS_KEY)).toBe(JSON.stringify(targets));
+    expect(parseWorkTargets(readWorkTargetsRaw())).toEqual(targets);
+    expect(WORK_TARGETS_KEY).toBe("work_targets");
+  });
+
   it("uses the two separate keys", () => {
     const storage = new FakeStorage();
     stubWindow(storage);
@@ -340,7 +394,8 @@ describe("browser storage", () => {
     saveActiveSession({ startTime: valid.startTime });
     clearActiveSession();
     savePaySettings({ hourlyRate: 10, currency: "TRY" });
-    expect(listener).toHaveBeenCalledTimes(4);
+    saveWorkTargets({ dailyHours: 10, daysOffPerMonth: 2 });
+    expect(listener).toHaveBeenCalledTimes(5);
   });
 
   it("returns false and does not throw or notify when a write fails", () => {
@@ -355,6 +410,7 @@ describe("browser storage", () => {
     expect(saveSessions([valid])).toBe(false);
     expect(saveActiveSession({ startTime: valid.startTime })).toBe(false);
     expect(savePaySettings({ hourlyRate: 10, currency: "TRY" })).toBe(false);
+    expect(saveWorkTargets({ dailyHours: 10, daysOffPerMonth: 2 })).toBe(false);
     expect(listener).not.toHaveBeenCalled();
   });
 

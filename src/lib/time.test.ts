@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   NO_VALUE,
+  daysInMonth,
   formatCsvDate,
   formatDate,
   formatDuration,
@@ -21,6 +22,16 @@ const HOUR_MS = 3_600_000;
 describe("test setup", () => {
   it("runs in Europe/Istanbul (UTC+3), not UTC", () => {
     expect(new Date(2026, 0, 1).getTimezoneOffset()).toBe(-180);
+  });
+});
+
+describe("daysInMonth", () => {
+  it("knows 28, 29, 30, and 31-day months", () => {
+    expect(daysInMonth(new Date(2026, 1, 10))).toBe(28); // Feb 2026
+    expect(daysInMonth(new Date(2028, 1, 10))).toBe(29); // Feb 2028, leap year
+    expect(daysInMonth(new Date(2026, 3, 30))).toBe(30); // April
+    expect(daysInMonth(new Date(2026, 9, 1))).toBe(31); // October
+    expect(daysInMonth(new Date(2026, 11, 31, 23, 59))).toBe(31); // December
   });
 });
 

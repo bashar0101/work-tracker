@@ -16,3 +16,8 @@ export interface PaySettings {
   hourlyRate: number | null; // null = not set yet
   currency: Currency;
 }
+
+export interface WorkTargets {
+  dailyHours: number; // more than 0, up to 24, up to 2 decimals (8.5 = 8h 30m)
+  daysOffPerMonth: number; // whole number, 0 to 10
+}

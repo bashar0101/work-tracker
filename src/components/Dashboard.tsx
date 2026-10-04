@@ -18,6 +18,13 @@ import {
 import { buildCsv, csvFileName, downloadCsv } from "@/lib/exportCsv";
 import { exportPdf } from "@/lib/exportPdf";
 import { formatMoney } from "@/lib/earnings";
+import {
+  dailyTargetMinutes,
+  getMonthPace,
+  getProgress,
+  monthlyTargetMinutes,
+  weeklyTargetMinutes,
+} from "@/lib/progress";
 import type { Currency } from "@/lib/types";
 import { formatDate, formatDuration, NO_VALUE } from "@/lib/time";
 import ExportControls from "./ExportControls";
@@ -29,9 +36,11 @@ import {
   SunIcon,
 } from "./icons";
 import PayCard from "./PayCard";
+import ProgressCard from "./ProgressCard";
 import SessionHistory from "./SessionHistory";
 import StatusCard from "./StatusCard";
 import SummaryCard from "./SummaryCard";
+import TargetsCard from "./TargetsCard";
 import WorkControls from "./WorkControls";
 
 const MS_PER_MINUTE = 60_000;
@@ -79,6 +88,8 @@ export default function Dashboard() {
     endWork,
     paySettings,
     savePaySettings,
+    workTargets,
+    saveWorkTargets,
     error,
   } = useWorkTracker();
   const { hourlyRate, currency } = paySettings;
@@ -100,6 +111,26 @@ export default function Dashboard() {
       monthEarnings: getMonthEarnings(sessions, now, hourlyRate),
     };
   }, [sessions, minute, hourlyRate]);
+
+  // Targets, progress, and pace (§10), on the same minute clock as the cards.
+  const progress = useMemo(() => {
+    const now = new Date(minute * MS_PER_MINUTE);
+    return {
+      today: getProgress(
+        stats.today.totalMinutes,
+        dailyTargetMinutes(workTargets),
+      ),
+      week: getProgress(
+        stats.week.totalMinutes,
+        weeklyTargetMinutes(workTargets),
+      ),
+      month: getProgress(
+        stats.month.totalMinutes,
+        monthlyTargetMinutes(workTargets, now),
+      ),
+      pace: getMonthPace(sessions, now, workTargets),
+    };
+  }, [stats, sessions, minute, workTargets]);
 
   // Month picker (§7). The user's pick wins while it still has sessions;
   // otherwise the default rule applies. Derived during render, no effects.
@@ -263,6 +294,21 @@ export default function Dashboard() {
             ]}
           />
         </div>
+
+        <ProgressCard
+          today={progress.today}
+          week={progress.week}
+          month={progress.month}
+          pace={progress.pace}
+        />
+
+        {/* Keyed on the saved targets: the inputs start over when they change. */}
+        <TargetsCard
+          key={`${workTargets.dailyHours}-${workTargets.daysOffPerMonth}`}
+          targets={workTargets}
+          onSave={saveWorkTargets}
+          loading={status === "loading"}
+        />
 
         {/* Keyed on the saved rate: the input starts over when it changes. */}
         <PayCard

@@ -133,6 +133,26 @@ export function ChevronDownIcon(props: IconProps) {
   );
 }
 
+export function TargetIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" />
+    </Icon>
+  );
+}
+
+export function GaugeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3.5 17a9 9 0 1 1 17 0" />
+      <path d="m12 14 4-5" />
+      <circle cx="12" cy="14" r="1.5" fill="currentColor" />
+    </Icon>
+  );
+}
+
 export function BanknoteIcon(props: IconProps) {
   return (
     <Icon {...props}>

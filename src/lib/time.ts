@@ -72,6 +72,12 @@ export function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
+/** Number of days in the month that contains `date`: 28 to 31. */
+export function daysInMonth(date: Date): number {
+  // Day 0 of the next month is the last day of this month.
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+
 /** `DD Mon YYYY`, e.g. `03 Oct 2026`. */
 export function formatDate(date: Date): string {
   return `${pad2(date.getDate())} ${MONTH_ABBR[date.getMonth()]} ${date.getFullYear()}`;

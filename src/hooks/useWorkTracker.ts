@@ -11,15 +11,23 @@ import {
   parseActiveSession,
   parsePaySettings,
   parseSessions,
+  parseWorkTargets,
   readActiveSessionRaw,
   readPaySettingsRaw,
   readSessionsRaw,
+  readWorkTargetsRaw,
   saveActiveSession,
   savePaySettings as storePaySettings,
   saveSessions,
+  saveWorkTargets as storeWorkTargets,
   subscribeToStorage,
 } from "@/lib/storage";
-import type { ActiveSession, PaySettings, WorkSession } from "@/lib/types";
+import type {
+  ActiveSession,
+  PaySettings,
+  WorkSession,
+  WorkTargets,
+} from "@/lib/types";
 
 export type TrackerStatus = "loading" | "working" | "idle";
 
@@ -33,6 +41,10 @@ export interface WorkTracker {
   paySettings: PaySettings;
   /** Saves the pay settings. Returns false (and sets `error`) on failure. */
   savePaySettings: (settings: PaySettings) => boolean;
+  /** Hours per day and days off per month (§10). Defaults until loaded. */
+  workTargets: WorkTargets;
+  /** Saves the targets. Returns false (and sets `error`) on failure. */
+  saveWorkTargets: (targets: WorkTargets) => boolean;
   error: string | null;
 }
 
@@ -72,9 +84,18 @@ export function useWorkTracker(): WorkTracker {
     readPaySettingsRaw,
     getRawServer,
   );
+  const targetsRaw = useSyncExternalStore(
+    subscribeToStorage,
+    readWorkTargetsRaw,
+    getRawServer,
+  );
 
   const sessions = useMemo(() => parseSessions(sessionsRaw), [sessionsRaw]);
   const paySettings = useMemo(() => parsePaySettings(payRaw), [payRaw]);
+  const workTargets = useMemo(
+    () => parseWorkTargets(targetsRaw),
+    [targetsRaw],
+  );
   const activeSession = useMemo(
     () => parseActiveSession(activeRaw),
     [activeRaw],
@@ -120,6 +141,12 @@ export function useWorkTracker(): WorkTracker {
     return ok;
   }, []);
 
+  const saveWorkTargets = useCallback((targets: WorkTargets): boolean => {
+    const ok = storeWorkTargets(targets);
+    setError(ok ? null : SAVE_ERROR);
+    return ok;
+  }, []);
+
   let status: TrackerStatus = "loading";
   if (loaded) status = activeSession ? "working" : "idle";
 
@@ -131,6 +158,8 @@ export function useWorkTracker(): WorkTracker {
     endWork,
     paySettings,
     savePaySettings,
+    workTargets,
+    saveWorkTargets,
     error,
   };
 }

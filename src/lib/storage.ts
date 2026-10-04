@@ -4,11 +4,18 @@
 // and writes return false.
 
 import { DEFAULT_CURRENCY, isCurrency, MAX_HOURLY_RATE } from "./earnings";
-import type { ActiveSession, PaySettings, WorkSession } from "./types";
+import { DEFAULT_WORK_TARGETS, isDailyHours, isDaysOff } from "./progress";
+import type {
+  ActiveSession,
+  PaySettings,
+  WorkSession,
+  WorkTargets,
+} from "./types";
 
 export const SESSIONS_KEY = "work_sessions";
 export const ACTIVE_SESSION_KEY = "active_work_session";
 export const PAY_SETTINGS_KEY = "pay_settings";
+export const WORK_TARGETS_KEY = "work_targets";
 
 /** No rate set yet, currency TRY (PROJECT_PLAN.md §2, §9). */
 export const DEFAULT_PAY_SETTINGS: PaySettings = {
@@ -101,6 +108,24 @@ export function parsePaySettings(raw: string | null): PaySettings {
   };
 }
 
+/**
+ * Stored hour targets (§10). Each field falls back to its default on its
+ * own. Missing or invalid JSON gives 10 hours a day and 2 days off.
+ */
+export function parseWorkTargets(raw: string | null): WorkTargets {
+  const data = parseJson(raw);
+  if (!isRecord(data)) return { ...DEFAULT_WORK_TARGETS };
+  const { dailyHours, daysOffPerMonth } = data;
+  return {
+    dailyHours: isDailyHours(dailyHours)
+      ? dailyHours
+      : DEFAULT_WORK_TARGETS.dailyHours,
+    daysOffPerMonth: isDaysOff(daysOffPerMonth)
+      ? daysOffPerMonth
+      : DEFAULT_WORK_TARGETS.daysOffPerMonth,
+  };
+}
+
 function readRaw(key: string): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -137,6 +162,11 @@ export function readPaySettingsRaw(): string | null {
   return readRaw(PAY_SETTINGS_KEY);
 }
 
+/** Raw `work_targets` string, for `useSyncExternalStore` snapshots. */
+export function readWorkTargetsRaw(): string | null {
+  return readRaw(WORK_TARGETS_KEY);
+}
+
 export function getSessions(): WorkSession[] {
   return parseSessions(readSessionsRaw());
 }
@@ -167,6 +197,14 @@ export function savePaySettings(settings: PaySettings): boolean {
     currency: settings.currency,
   };
   return write((s) => s.setItem(PAY_SETTINGS_KEY, JSON.stringify(value)));
+}
+
+export function saveWorkTargets(targets: WorkTargets): boolean {
+  const value: WorkTargets = {
+    dailyHours: targets.dailyHours,
+    daysOffPerMonth: targets.daysOffPerMonth,
+  };
+  return write((s) => s.setItem(WORK_TARGETS_KEY, JSON.stringify(value)));
 }
 
 /**

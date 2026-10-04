@@ -14,6 +14,7 @@
 - [x] Phase 7 — PDF export
 - [ ] Phase 8 — Polish and final check
 - [ ] Phase 9 — Hourly rate and earnings
+- [ ] Phase 10 — Hour targets, progress, and pace
 
 ---
 
@@ -21,7 +22,7 @@
 
 ## 1. Scope
 
-**Build:** start and end work sessions, a live timer, daily/weekly/monthly statistics, session history, monthly CSV and PDF export, an hourly rate with earnings (§9), localStorage persistence, a mobile-friendly UI.
+**Build:** start and end work sessions, a live timer, daily/weekly/monthly statistics, session history, monthly CSV and PDF export, an hourly rate with earnings (§9), daily/weekly/monthly hour targets with progress and pace (§10), localStorage persistence, a mobile-friendly UI.
 
 **Don't build unless I ask:** backend, API, database, auth, cloud sync or backup, multiple users or jobs, overtime rules, taxes, currency conversion, editing or deleting sessions, PWA, dark mode.
 
@@ -49,6 +50,7 @@ export interface ActiveSession {
 | `work_sessions` | JSON array of `WorkSession` | no sessions yet (`[]`) |
 | `active_work_session` | JSON `ActiveSession` | not working |
 | `pay_settings` | JSON `PaySettings` (§9) | no rate set, currency `TRY` |
+| `work_targets` | JSON `WorkTargets` (§10) | 10 hours a day, 2 days off a month |
 
 - Invalid JSON counts as missing. Invalid items inside the array are skipped; valid ones are kept. Bad data never crashes the app.
 - IDs: use `crypto.randomUUID()` when it exists, otherwise a fallback. It doesn't exist on plain-HTTP addresses, such as `http://192.168.1.20:3000` when you test on a phone.
@@ -207,6 +209,56 @@ export interface PaySettings {
 - CSV: three more columns: `Date,Start Time,End Time,Duration,Duration Minutes,Hourly Rate,Earnings,Currency`. `Hourly Rate` and `Earnings` are plain numbers with 2 decimals and no thousands separator (`25.00`, `212.50`), so spreadsheets read them as numbers. Empty cells when no rate applies.
 - PDF: an `Earnings` line in the month summary, and an `Earnings` column in the table.
 
+## 10. Hour targets, progress, and pace
+
+The employee should work a set number of hours every day, with a few days off per month. Defaults: **10 hours a day, 2 days off a month.**
+
+```ts
+// src/lib/types.ts
+export interface WorkTargets {
+  dailyHours: number;      // more than 0, up to 24, up to 2 decimals (8.5 = 8h 30m)
+  daysOffPerMonth: number; // whole number, 0 to 10
+}
+```
+
+**Settings**
+- A "Targets" card with two inputs: `Hours per day` and `Days off per month`, and a Save button (and Enter). An invalid value shows an inline error and nothing is saved.
+- Invalid stored data falls back to the defaults, field by field.
+- Changing the targets changes all progress and pace right away, also for the past.
+
+**Targets** (all in minutes; daily minutes = `Math.round(dailyHours × 60)`)
+- Day: daily target. 10h by default.
+- Week (Monday–Sunday): always 7 × daily target, 70h by default. Days off do not lower it.
+- Month: (days in the month − days off per month) × daily target. The month length matters: Feb 2026 (28 days) = 26 × 10h = 260h, April (30) = 280h, October (31) = 290h. Leap years count: Feb 2028 has 29 days → 270h.
+
+**Progress** (Today, This Week, This Month)
+- Worked = the same totals as §5 (completed sessions only; a running session counts after it ends).
+- Shows worked / target, percent, and time left.
+- Percent = `Math.round(worked ÷ target × 100)`. It can go above 100%; the bar stops at full. With a target of 0, show `-`.
+- Left = target − worked, never below 0. At 0, show "Target reached".
+
+**Days off are automatic.** Nothing has to be marked.
+- Past days = days of the current month before today. Today is still in progress, so it never counts as a day off.
+- A past day with no work time (`0h 00m`, for example no sessions or only an accidental 0-minute one) is a day off, up to the monthly allowance.
+- Empty past days beyond the allowance are **missed days**. They are not days off; they count against the target.
+- `Days off left` = allowance − days off used.
+
+**Pace analysis** (current month only, from `now`)
+- Expected by now = (past days − days off used) × daily target. Today is not expected yet, so work done today puts you ahead.
+- Difference = month worked − expected by now.
+  - Within ±30 minutes: `On track`.
+  - More: `Ahead by 4h 30m`. Less: `Behind by 4h 30m`.
+- Work days left = days from today to the end of the month (today included) − days off left. Never below 0.
+- Needed per day = (monthly target − month worked) ÷ work days left, rounded **up** to the minute. If the target is already reached: `0h 00m`. If work days left is 0 but hours are still missing: `-`.
+- Month-end projection = past worked + (past worked ÷ past work days) × work days left. Past work days = past days − days off used. Never less than month worked. With 0 past work days (for example on the 1st): `-`.
+- Also shown: `Days off left: N of M`, and `Missed days: N` when N > 0.
+
+**UI**
+- A "Progress" card below the summary cards: three progress bars (Today, This Week, This Month), then the pace block.
+- The "Targets" card sits next to the Pay card.
+- Progress uses the same minute clock as the summary cards, so it changes at midnight.
+- Formats from §4. Never `NaN`. Progress and pace are not in the CSV or PDF.
+
 ---
 
 # Part 2 — Phases
@@ -319,6 +371,25 @@ Tests must include: 8h 30m at 25.00 → `212.50`; rounding to the nearest cent; 
 **Done when:** the four commands pass.
 **Manual checks:** set a rate → cards, history, and the live amount show earnings; change the rate → old sessions keep their amount, new ones use the new rate; CSV and PDF show the new columns and the same totals as the dashboard.
 
+## Phase 10 — Hour targets, progress, and pace
+- [ ] `WorkTargets` type from §10. `daysInMonth` in `time.ts` with tests.
+- [ ] `storage.ts`: `work_targets` read/parse/save (pure parser with tests; invalid → defaults, field by field), included in the storage subscription.
+- [ ] `src/lib/progress.ts` with tests: targets per period, progress, automatic days off, pace, input parsers, and formatters.
+- [ ] `useWorkTracker` exposes the targets and a way to save them.
+- [ ] UI: `ProgressCard` (three bars + pace) and `TargetsCard` (settings).
+
+Tests must include:
+- Monthly target with defaults: 28 days → 260h, 30 → 280h, 31 → 290h, Feb 2028 (leap year) → 270h.
+- Weekly target = 70h with defaults.
+- Days off: 1 empty past day → 1 used, 1 left, 0 missed; 3 empty past days → 2 used, 0 left, 1 missed. Today is never a day off.
+- Pace on the 1st with no work: expected 0, `On track`, projection `-`.
+- Ahead, behind, and the ±30-minute on-track band.
+- Needed per day is rounded up, is `0h 00m` when the target is reached, and `-` when no work days are left.
+- Percent above 100%; target 0 → `-`; no `NaN` anywhere.
+
+**Done when:** the four commands pass.
+**Manual checks:** fill a month with a console snippet (some 10h days, some short days, 1–3 empty days) → bars, expected-by-now, ahead/behind, needed per day, projection, and days off match a hand calculation. Change the targets to 8h and 4 days off → everything updates. At 375px width there is no horizontal scroll.
+
 ## Definition of Done
 - [ ] All phases are ticked, and the four commands pass.
 - [ ] Start and End work. The timer survives a refresh, a background tab, and a second tab.
@@ -340,6 +411,9 @@ Add a line whenever a decision changes or extends the spec.
 | 2026-10-03 | Vitest added (dev only) | Claude needs tests it can run to check the date logic |
 | 2026-10-03 | §8 "support Arabic, Turkish, English" means the English app works in any of those browser languages; no translated UI | Keeps the fixed formats of §4 and keeps PDF text safe for jsPDF's built-in fonts |
 | 2026-10-03 | Added hourly rate and earnings (§9, Phase 9); salary was out of scope before | Requested by the user. Each session keeps its own rate; currency codes, not symbols, so the PDF stays safe |
+| 2026-10-04 | Added hour targets, progress, and pace (§10, Phase 10). Defaults: 10h a day, 2 days off a month, both editable | Requested by the user |
+| 2026-10-04 | Days off are automatic: empty past days, up to the monthly allowance. No "mark day off" button | Chosen by the user: no extra input for the employee |
+| 2026-10-04 | Weekly target is always 7 × daily target (70h); days off don't lower it | Chosen by the user |
 
 ## Ideas (not in scope)
 Ideas that come up during the build go here, not into the code.
