@@ -9,7 +9,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans), var(--font-arabic);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -24,5 +24,12 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  /* Geist has no Arabic letters, so Arabic text falls through to Noto. */
+  font-family: var(--font-geist-sans), var(--font-arabic), Arial, Helvetica,
+    sans-serif;
+}
+
+/* Arabic letters join; letter spacing breaks them apart (§13). */
+[dir="rtl"] [class*="tracking-"] {
+  letter-spacing: normal;
 }

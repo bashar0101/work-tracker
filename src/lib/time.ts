@@ -1,6 +1,9 @@
 // Date keys, period starts, and formatters (PROJECT_PLAN.md §4).
 // All dates use the device's local time. Nothing here reads the clock.
-// Output is always English with digits 0-9: no locale-dependent APIs.
+// Output is English by default (CSV and PDF) or Arabic for the UI (§13),
+// always with digits 0-9: no locale-dependent APIs.
+
+import type { Locale } from "./i18n";
 
 /** Shown when there is no value, e.g. the average with 0 working days. */
 export const NO_VALUE = "-";
@@ -35,7 +38,27 @@ const MONTH_NAMES = [
   "December",
 ] as const;
 
+// Gulf/Egyptian month names (§13). Arabic has no short month names.
+const MONTH_NAMES_AR = [
+  "يناير",
+  "فبراير",
+  "مارس",
+  "أبريل",
+  "مايو",
+  "يونيو",
+  "يوليو",
+  "أغسطس",
+  "سبتمبر",
+  "أكتوبر",
+  "نوفمبر",
+  "ديسمبر",
+] as const;
+
 const MS_PER_DAY = 86_400_000;
+
+function monthName(monthIndex: number, locale: Locale): string {
+  return locale === "ar" ? MONTH_NAMES_AR[monthIndex] : MONTH_NAMES[monthIndex];
+}
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -78,9 +101,13 @@ export function daysInMonth(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 }
 
-/** `DD Mon YYYY`, e.g. `03 Oct 2026`. */
-export function formatDate(date: Date): string {
-  return `${pad2(date.getDate())} ${MONTH_ABBR[date.getMonth()]} ${date.getFullYear()}`;
+/** `DD Mon YYYY`, e.g. `03 Oct 2026`; Arabic `03 أكتوبر 2026`. */
+export function formatDate(date: Date, locale: Locale = "en"): string {
+  const month =
+    locale === "ar"
+      ? MONTH_NAMES_AR[date.getMonth()]
+      : MONTH_ABBR[date.getMonth()];
+  return `${pad2(date.getDate())} ${month} ${date.getFullYear()}`;
 }
 
 /** `HH:mm`, 24-hour, e.g. `09:05`. */
@@ -105,13 +132,18 @@ export function formatEndTime(start: Date, end: Date): string {
   return days > 0 ? `${time} (+${days})` : time;
 }
 
-/** Duration from minutes: `8h 05m`, `0h 00m`, `126h 40m`. Never NaN. */
-export function formatDuration(minutes: number): string {
+/**
+ * Duration from minutes: `8h 05m`, `0h 00m`, `126h 40m`; Arabic `8س 05د`.
+ * Never NaN.
+ */
+export function formatDuration(minutes: number, locale: Locale = "en"): string {
   const total =
     Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : 0;
   const hours = Math.floor(total / 60);
   const mins = total % 60;
-  return `${hours}h ${pad2(mins)}m`;
+  return locale === "ar"
+    ? `${hours}س ${pad2(mins)}د`
+    : `${hours}h ${pad2(mins)}m`;
 }
 
 /** Live timer from milliseconds: `HH:MM:SS`. Hours can go past 24. */
@@ -129,20 +161,20 @@ export function formatCsvDate(date: Date): string {
   return toDateKey(date);
 }
 
-/** `Month YYYY`, e.g. `October 2026`. */
-export function formatMonth(date: Date): string {
-  return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+/** `Month YYYY`, e.g. `October 2026`; Arabic `أكتوبر 2026`. */
+export function formatMonth(date: Date, locale: Locale = "en"): string {
+  return `${monthName(date.getMonth(), locale)} ${date.getFullYear()}`;
 }
 
 /**
  * `Month YYYY` from a `YYYY-MM` key, e.g. `2026-10` → `October 2026`.
  * Returns NO_VALUE for an invalid key.
  */
-export function formatMonthKey(key: string): string {
+export function formatMonthKey(key: string, locale: Locale = "en"): string {
   const match = /^(\d{4})-(\d{2})$/.exec(key);
   if (!match) return NO_VALUE;
   const year = Number(match[1]);
   const monthIndex = Number(match[2]) - 1;
   if (monthIndex < 0 || monthIndex > 11) return NO_VALUE;
-  return `${MONTH_NAMES[monthIndex]} ${year}`;
+  return `${monthName(monthIndex, locale)} ${year}`;
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { TrackerStatus } from "@/hooks/useWorkTracker";
 import { formatTime } from "@/lib/time";
 import type { ActiveSession, Currency } from "@/lib/types";
+import { Ltr, useI18n } from "./I18n";
 import { ClockIcon } from "./icons";
 import Timer from "./Timer";
 
@@ -22,6 +23,7 @@ export default function StatusCard({
   hourlyRate,
   currency,
 }: StatusCardProps) {
+  const { m } = useI18n();
   let content: ReactNode;
   let tone: string;
 
@@ -30,7 +32,7 @@ export default function StatusCard({
     content = (
       <div className="flex flex-col items-center gap-3">
         <p className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold tracking-widest text-slate-600">
-          Loading…
+          {m.loading}
         </p>
         <div
           aria-hidden="true"
@@ -48,7 +50,7 @@ export default function StatusCard({
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75 motion-reduce:animate-none" />
             <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500" />
           </span>
-          WORKING
+          {m.status.working}
         </p>
         <Timer
           startTime={activeSession.startTime}
@@ -57,7 +59,8 @@ export default function StatusCard({
         />
         <p className="inline-flex items-center gap-1.5 text-sm text-slate-600">
           <ClockIcon className="size-4 text-emerald-600" />
-          Started at {formatTime(new Date(activeSession.startTime))}
+          {m.status.startedAt}
+          <Ltr>{formatTime(new Date(activeSession.startTime))}</Ltr>
         </p>
       </div>
     );
@@ -73,14 +76,14 @@ export default function StatusCard({
             aria-hidden="true"
             className="size-2.5 rounded-full bg-slate-400"
           />
-          NOT WORKING
+          {m.status.notWorking}
         </p>
       </div>
     );
   }
 
   return (
-    <section aria-label="Work status" className={`${CARD} ${tone}`}>
+    <section aria-label={m.status.label} className={`${CARD} ${tone}`}>
       {status === "working" && activeSession && (
         <div
           aria-hidden="true"

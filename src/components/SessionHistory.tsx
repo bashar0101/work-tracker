@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { formatMoney, sessionEarningsCents } from "@/lib/earnings";
-import { sessionToFormValues, type SessionFormValues } from "@/lib/sessionEdit";
+import type { SaveErrorCode } from "@/hooks/useWorkTracker";
+import type { Locale } from "@/lib/i18n";
+import {
+  sessionToFormValues,
+  type SessionErrorCode,
+  type SessionFormValues,
+} from "@/lib/sessionEdit";
 import { sortNewestFirst } from "@/lib/sessions";
 import {
   formatDate,
@@ -12,6 +18,7 @@ import {
   toDateKey,
 } from "@/lib/time";
 import type { Currency, WorkSession } from "@/lib/types";
+import { Ltr, useI18n } from "./I18n";
 import { HistoryIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
 import SessionForm from "./SessionForm";
 
@@ -21,13 +28,15 @@ interface SessionHistoryProps {
   currentRate: number | null;
   currency: Currency;
   loading?: boolean;
-  /** Adds a session (§11). Returns an error message or `null`. */
-  onAdd: (values: SessionFormValues) => string | null;
-  /** Changes a session's times (§11). Returns an error message or `null`. */
-  onUpdate: (id: string, values: SessionFormValues) => string | null;
+  /** Adds a session (§11). Returns an error code or `null`. */
+  onAdd: (values: SessionFormValues) => EditError | null;
+  /** Changes a session's times (§11). Returns an error code or `null`. */
+  onUpdate: (id: string, values: SessionFormValues) => EditError | null;
   /** Deletes a session (§11). */
   onDelete: (id: string) => void;
 }
+
+type EditError = SessionErrorCode | SaveErrorCode;
 
 interface HistoryRow {
   session: WorkSession;
@@ -48,16 +57,17 @@ function toRow(
   session: WorkSession,
   currentRate: number | null,
   currency: Currency,
+  locale: Locale,
 ): HistoryRow {
   const start = new Date(session.startTime);
   const end = new Date(session.endTime);
   return {
     session,
     id: session.id,
-    date: formatDate(start),
+    date: formatDate(start, locale),
     start: formatTime(start),
     end: formatEndTime(start, end),
-    duration: formatDuration(session.durationMinutes),
+    duration: formatDuration(session.durationMinutes, locale),
     earnings: formatMoney(sessionEarningsCents(session, currentRate), currency),
   };
 }
@@ -86,30 +96,32 @@ function RowActions({
   onConfirmDelete,
   onCancelDelete,
 }: RowActionsProps) {
+  const { m } = useI18n();
+  const h = m.history;
   const label = `${row.date} ${row.start}`;
   if (confirming) {
     return (
       <div
         role="group"
-        aria-label={`Delete session ${label}?`}
+        aria-label={h.deleteGroupLabel(label)}
         className="flex flex-wrap items-center justify-end gap-2"
       >
         <span className="text-sm font-medium text-rose-800">
-          Delete this session?
+          {h.confirmDelete}
         </span>
         <button
           type="button"
           onClick={onConfirmDelete}
           className={`${SMALL_BUTTON} bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-300`}
         >
-          Delete
+          {h.delete}
         </button>
         <button
           type="button"
           onClick={onCancelDelete}
           className={`${SMALL_BUTTON} bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 focus-visible:ring-indigo-200`}
         >
-          Cancel
+          {h.cancel}
         </button>
       </div>
     );
@@ -119,8 +131,8 @@ function RowActions({
       <button
         type="button"
         onClick={onEdit}
-        aria-label={`Edit session ${label}`}
-        title="Edit"
+        aria-label={h.editLabel(label)}
+        title={h.edit}
         className={ICON_BUTTON}
       >
         <PencilIcon />
@@ -128,8 +140,8 @@ function RowActions({
       <button
         type="button"
         onClick={onAskDelete}
-        aria-label={`Delete session ${label}`}
-        title="Delete"
+        aria-label={h.deleteLabel(label)}
+        title={h.delete}
         className={`${ICON_BUTTON} hover:bg-rose-50 hover:text-rose-700`}
       >
         <TrashIcon />
@@ -150,12 +162,14 @@ export default function SessionHistory({
   onUpdate,
   onDelete,
 }: SessionHistoryProps) {
+  const { locale, m } = useI18n();
+  const h = m.history;
   const rows = useMemo(
     () =>
       sortNewestFirst(sessions).map((session) =>
-        toRow(session, currentRate, currency),
+        toRow(session, currentRate, currency, locale),
       ),
-    [sessions, currentRate, currency],
+    [sessions, currentRate, currency, locale],
   );
 
   const [form, setForm] = useState<FormState>(null);
@@ -177,10 +191,13 @@ export default function SessionHistory({
 
   function handleSave(values: SessionFormValues): string | null {
     if (!form) return null;
-    const message =
+    const code =
       form.mode === "add" ? onAdd(values) : onUpdate(form.id, values);
-    if (message === null) setForm(null);
-    return message;
+    if (code === null) {
+      setForm(null);
+      return null;
+    }
+    return code === "save-failed" ? m.saveFailed : m.form.errors[code];
   }
 
   function confirmDelete(id: string): void {
@@ -206,7 +223,7 @@ export default function SessionHistory({
   if (loading) {
     content = (
       <p className="animate-pulse text-sm text-slate-500 motion-reduce:animate-none">
-        Loading sessions…
+        {h.loading}
       </p>
     );
   } else if (rows.length === 0) {
@@ -216,7 +233,7 @@ export default function SessionHistory({
           <HistoryIcon className="size-6" />
         </div>
         <p className="text-sm text-slate-600">
-          No sessions yet. Press Start Work to begin.
+          {h.empty}
         </p>
       </div>
     );
@@ -232,7 +249,7 @@ export default function SessionHistory({
                     {row.date}
                   </p>
                   <p className="text-sm tabular-nums text-slate-600">
-                    {row.start} – {row.end}
+                    <Ltr>{row.start}</Ltr> – <Ltr>{row.end}</Ltr>
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
@@ -240,7 +257,7 @@ export default function SessionHistory({
                     {row.duration}
                   </span>
                   <span className="whitespace-nowrap text-sm tabular-nums text-slate-600">
-                    <span className="sr-only">Earnings: </span>
+                    <span className="sr-only">{h.earningsPrefix}</span>
                     {row.earnings}
                   </span>
                 </div>
@@ -251,26 +268,26 @@ export default function SessionHistory({
         </ul>
 
         <div className="hidden overflow-hidden rounded-xl ring-1 ring-slate-200/70 md:block">
-          <table className="w-full text-left text-sm tabular-nums">
+          <table className="w-full text-start text-sm tabular-nums">
             <thead className="bg-slate-50/80">
-              <tr className="text-xs uppercase tracking-wider text-slate-500">
-                <th scope="col" className="px-4 py-3 font-semibold">
-                  Date
+              <tr className="text-start text-xs uppercase tracking-wider text-slate-500">
+                <th scope="col" className="px-4 py-3 text-start font-semibold">
+                  {h.date}
                 </th>
-                <th scope="col" className="px-4 py-3 font-semibold">
-                  Start
+                <th scope="col" className="px-4 py-3 text-start font-semibold">
+                  {h.start}
                 </th>
-                <th scope="col" className="px-4 py-3 font-semibold">
-                  End
+                <th scope="col" className="px-4 py-3 text-start font-semibold">
+                  {h.end}
                 </th>
-                <th scope="col" className="px-4 py-3 text-right font-semibold">
-                  Duration
+                <th scope="col" className="px-4 py-3 text-end font-semibold">
+                  {h.duration}
                 </th>
-                <th scope="col" className="px-4 py-3 text-right font-semibold">
-                  Earnings
+                <th scope="col" className="px-4 py-3 text-end font-semibold">
+                  {h.earnings}
                 </th>
                 <th scope="col" className="px-2 py-3">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{h.actions}</span>
                 </th>
               </tr>
             </thead>
@@ -283,12 +300,16 @@ export default function SessionHistory({
                   <td className="px-4 py-2 font-medium text-slate-900">
                     {row.date}
                   </td>
-                  <td className="px-4 py-2 text-slate-700">{row.start}</td>
-                  <td className="px-4 py-2 text-slate-700">{row.end}</td>
-                  <td className="px-4 py-2 text-right font-semibold whitespace-nowrap text-slate-900">
+                  <td className="px-4 py-2 text-slate-700">
+                    <Ltr>{row.start}</Ltr>
+                  </td>
+                  <td className="px-4 py-2 text-slate-700">
+                    <Ltr>{row.end}</Ltr>
+                  </td>
+                  <td className="px-4 py-2 text-end font-semibold whitespace-nowrap text-slate-900">
                     {row.duration}
                   </td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap text-slate-700">
+                  <td className="px-4 py-2 text-end whitespace-nowrap text-slate-700">
                     {row.earnings}
                   </td>
                   <td className="px-2 py-1">{actionsFor(row)}</td>
@@ -314,7 +335,7 @@ export default function SessionHistory({
           id="session-history-heading"
           className="text-lg font-semibold tracking-tight text-slate-900"
         >
-          Session History
+          {h.title}
         </h2>
         {!loading && rows.length > 0 && (
           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-slate-700 ring-1 ring-slate-900/5">
@@ -326,10 +347,10 @@ export default function SessionHistory({
             type="button"
             onClick={openAdd}
             disabled={form?.mode === "add"}
-            className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-white px-3 text-sm font-semibold text-indigo-700 shadow-sm ring-1 ring-indigo-600/20 transition hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-50"
+            className="ms-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-white px-3 text-sm font-semibold text-indigo-700 shadow-sm ring-1 ring-indigo-600/20 transition hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <PlusIcon className="size-4" />
-            Add session
+            {h.add}
           </button>
         )}
       </div>
@@ -337,7 +358,7 @@ export default function SessionHistory({
       {form && (
         <SessionForm
           key={form.mode === "edit" ? form.id : "add"}
-          title={form.mode === "add" ? "Add session" : "Edit session"}
+          title={form.mode === "add" ? m.form.addTitle : m.form.editTitle}
           initialValues={form.values}
           onSave={handleSave}
           onCancel={() => setForm(null)}

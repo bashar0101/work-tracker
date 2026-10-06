@@ -3,6 +3,7 @@
 // Line endings are CRLF (`\r\n`), as RFC 4180 says, and the file ends with a
 // line break. Excel, Google Sheets, and Numbers all read this correctly.
 
+import { downloadTextFile } from "./download";
 import {
   effectiveRate,
   formatCsvMoney,
@@ -92,20 +93,7 @@ export function csvFileName(monthKey: string): string {
   return `work-sessions-${monthKey}.csv`;
 }
 
-/**
- * Browser only: downloads `csv` as a file with a Blob and a temporary
- * `<a download>` link. The object URL is revoked after the click has been
- * handled, so Safari and mobile browsers still get the file.
- */
+/** Browser only: downloads `csv` as a file (see `download.ts`). */
 export function downloadCsv(csv: string, fileName: string): void {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  downloadTextFile(csv, fileName, "text/csv;charset=utf-8");
 }

@@ -6,11 +6,12 @@ import { createSession } from "@/lib/sessions";
 import {
   addSessionFromForm,
   removeSession,
-  SESSION_ERROR_MESSAGES,
   updateSessionFromForm,
   type SessionEditResult,
+  type SessionErrorCode,
   type SessionFormValues,
 } from "@/lib/sessionEdit";
+import { detectLocale, parseLocale, type Locale } from "@/lib/i18n";
 import {
   clearActiveSession,
   getActiveSession,
@@ -21,23 +22,33 @@ import {
   parseSessions,
   parseWorkTargets,
   readActiveSessionRaw,
+  readLocaleRaw,
   readPaySettingsRaw,
   readSessionsRaw,
   readWorkTargetsRaw,
   saveActiveSession,
+  saveLocale,
   savePaySettings as storePaySettings,
   saveSessions,
   saveWorkTargets as storeWorkTargets,
+  restoreAll,
   subscribeToStorage,
 } from "@/lib/storage";
 import type {
   ActiveSession,
+  AppData,
   PaySettings,
   WorkSession,
   WorkTargets,
 } from "@/lib/types";
 
 export type TrackerStatus = "loading" | "working" | "idle";
+
+/** A failed storage write; the UI shows it in the chosen language. */
+export type SaveErrorCode = "save-failed";
+
+/** Why a restore didn't happen (§12). */
+export type RestoreErrorCode = "restore-working" | "restore-failed";
 
 export interface WorkTracker {
   status: TrackerStatus;
@@ -53,21 +64,30 @@ export interface WorkTracker {
   workTargets: WorkTargets;
   /** Saves the targets. Returns false (and sets `error`) on failure. */
   saveWorkTargets: (targets: WorkTargets) => boolean;
-  /** Adds a session from the form (§11). Returns an error message or `null`. */
-  addSession: (values: SessionFormValues) => string | null;
-  /** Changes a session's times (§11). Returns an error message or `null`. */
-  updateSession: (id: string, values: SessionFormValues) => string | null;
+  /** Adds a session from the form (§11). Returns an error code or `null`. */
+  addSession: (values: SessionFormValues) => SessionErrorCode | SaveErrorCode | null;
+  /** Changes a session's times (§11). Returns an error code or `null`. */
+  updateSession: (
+    id: string,
+    values: SessionFormValues,
+  ) => SessionErrorCode | SaveErrorCode | null;
   /** Deletes a session. Returns false (and sets `error`) on failure. */
   deleteSession: (id: string) => boolean;
-  error: string | null;
+  /** Replaces all data with a backup (§12). Returns an error code or `null`. */
+  restoreBackup: (data: AppData) => RestoreErrorCode | null;
+  /** UI language (§13): saved, else detected from the browser. */
+  locale: Locale;
+  setLocale: (locale: Locale) => void;
+  error: SaveErrorCode | null;
 }
 
-const SAVE_ERROR =
-  "Could not save. Your browser storage may be full or blocked.";
+const SAVE_ERROR: SaveErrorCode = "save-failed";
 
-/** Saves a successful edit. Returns an error message or `null`. */
-function saveEdit(result: SessionEditResult): string | null {
-  if (!result.ok) return SESSION_ERROR_MESSAGES[result.error];
+/** Saves a successful edit. Returns an error code or `null`. */
+function saveEdit(
+  result: SessionEditResult,
+): SessionErrorCode | SaveErrorCode | null {
+  if (!result.ok) return result.error;
   return saveSessions(result.sessions) ? null : SAVE_ERROR;
 }
 
@@ -80,6 +100,12 @@ function noopSubscribe(): () => void {
 const getLoadedClient = () => true;
 const getLoadedServer = () => false;
 const getRawServer = () => null;
+
+// Browser languages as one stable string, e.g. "ar-SA,en". Empty on the
+// server, so the server render and the first client render use English.
+const getBrowserLanguages = () =>
+  (navigator.languages?.length ? navigator.languages : [navigator.language]).join(",");
+const getNoLanguages = () => "";
 
 export function useWorkTracker(): WorkTracker {
   const loaded = useSyncExternalStore(
@@ -110,6 +136,23 @@ export function useWorkTracker(): WorkTracker {
     getRawServer,
   );
 
+  const localeRaw = useSyncExternalStore(
+    subscribeToStorage,
+    readLocaleRaw,
+    getRawServer,
+  );
+  const browserLanguages = useSyncExternalStore(
+    noopSubscribe,
+    getBrowserLanguages,
+    getNoLanguages,
+  );
+  const locale = useMemo(
+    () =>
+      parseLocale(localeRaw) ??
+      detectLocale(browserLanguages ? browserLanguages.split(",") : []),
+    [localeRaw, browserLanguages],
+  );
+
   const sessions = useMemo(() => parseSessions(sessionsRaw), [sessionsRaw]);
   const paySettings = useMemo(() => parsePaySettings(payRaw), [payRaw]);
   const workTargets = useMemo(
@@ -121,7 +164,7 @@ export function useWorkTracker(): WorkTracker {
     [activeRaw],
   );
 
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<SaveErrorCode | null>(null);
 
   const startWork = useCallback(() => {
     // Another tab may have started already: never overwrite it.
@@ -171,7 +214,7 @@ export function useWorkTracker(): WorkTracker {
   // or overlapped. Rule errors show in the form; only a failed write also
   // sets the page error.
   const addSession = useCallback((values: SessionFormValues) => {
-    const message = saveEdit(
+    const code = saveEdit(
       addSessionFromForm(
         getSessions(),
         values,
@@ -180,13 +223,13 @@ export function useWorkTracker(): WorkTracker {
         getPaySettings().hourlyRate,
       ),
     );
-    setError(message === SAVE_ERROR ? SAVE_ERROR : null);
-    return message;
+    setError(code === SAVE_ERROR ? SAVE_ERROR : null);
+    return code;
   }, []);
 
   const updateSession = useCallback(
     (id: string, values: SessionFormValues) => {
-      const message = saveEdit(
+      const code = saveEdit(
         updateSessionFromForm(
           getSessions(),
           id,
@@ -195,8 +238,8 @@ export function useWorkTracker(): WorkTracker {
           new Date(),
         ),
       );
-      setError(message === SAVE_ERROR ? SAVE_ERROR : null);
-      return message;
+      setError(code === SAVE_ERROR ? SAVE_ERROR : null);
+      return code;
     },
     [],
   );
@@ -205,6 +248,19 @@ export function useWorkTracker(): WorkTracker {
     const ok = saveSessions(removeSession(getSessions(), id));
     setError(ok ? null : SAVE_ERROR);
     return ok;
+  }, []);
+
+  const restoreBackup = useCallback(
+    (data: AppData): RestoreErrorCode | null => {
+      // Re-read: another tab may have started a session.
+      if (getActiveSession()) return "restore-working";
+      return restoreAll(data) ? null : "restore-failed";
+    },
+    [],
+  );
+
+  const setLocale = useCallback((next: Locale) => {
+    setError(saveLocale(next) ? null : SAVE_ERROR);
   }, []);
 
   let status: TrackerStatus = "loading";
@@ -223,6 +279,9 @@ export function useWorkTracker(): WorkTracker {
     addSession,
     updateSession,
     deleteSession,
+    restoreBackup,
+    locale,
+    setLocale,
     error,
   };
 }

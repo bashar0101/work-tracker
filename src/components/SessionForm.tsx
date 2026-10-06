@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { readSessionForm, type SessionFormValues } from "@/lib/sessionEdit";
 import { formatDuration } from "@/lib/time";
+import { useI18n } from "./I18n";
 import { AlertIcon } from "./icons";
 
 interface SessionFormProps {
@@ -26,6 +27,8 @@ export default function SessionForm({
   onSave,
   onCancel,
 }: SessionFormProps) {
+  const { locale, m } = useI18n();
+  const t = m.form;
   const [values, setValues] = useState(initialValues);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +62,7 @@ export default function SessionForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="session-date" className={LABEL}>
-            Date
+            {t.date}
           </label>
           <input
             id="session-date"
@@ -73,7 +76,7 @@ export default function SessionForm({
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="session-start" className={LABEL}>
-            Start
+            {t.start}
           </label>
           <input
             id="session-start"
@@ -86,7 +89,7 @@ export default function SessionForm({
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="session-end" className={LABEL}>
-            End
+            {t.end}
           </label>
           <input
             id="session-end"
@@ -102,14 +105,14 @@ export default function SessionForm({
       <p aria-live="polite" className="text-sm tabular-nums text-slate-700">
         {preview.ok ? (
           <>
-            Duration:{" "}
+            {t.duration}{" "}
             <span className="font-semibold text-slate-900">
-              {formatDuration(preview.times.durationMinutes)}
+              {formatDuration(preview.times.durationMinutes, locale)}
             </span>
-            {preview.times.endsNextDay && " · Ends next day (+1)"}
+            {preview.times.endsNextDay && ` · ${t.endsNextDay}`}
           </>
         ) : (
-          "Duration: -"
+          `${t.duration} -`
         )}
       </p>
 
@@ -129,13 +132,13 @@ export default function SessionForm({
           onClick={onCancel}
           className="inline-flex min-h-12 items-center justify-center rounded-xl bg-white px-6 py-3 text-base font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
         >
-          Cancel
+          {t.cancel}
         </button>
         <button
           type="submit"
           className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 text-base font-semibold text-white shadow-md shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300 focus-visible:ring-offset-2"
         >
-          Save
+          {t.save}
         </button>
       </div>
     </form>

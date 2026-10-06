@@ -16,12 +16,14 @@
 - [x] Phase 9 — Hourly rate and earnings
 - [x] Phase 10 — Hour targets, progress, and pace
 - [x] Phase 11 — Edit, delete, and add sessions
-- [ ] Phase 12 — Backup and restore (JSON)
-- [ ] Phase 13 — Overtime
-- [ ] Phase 14 — Notes on sessions
-- [ ] Phase 15 — Mark days off by hand
-- [ ] Phase 16 — Reminders
-- [ ] Phase 17 — Charts
+- [x] Phase 12 — Backup and restore (JSON)
+- [x] Phase 13 — Arabic UI
+- [ ] Phase 14 — Arabic exports (CSV and PDF)
+- [ ] Phase 15 — Overtime
+- [ ] Phase 16 — Notes on sessions
+- [ ] Phase 17 — Mark days off by hand
+- [ ] Phase 18 — Reminders
+- [ ] Phase 19 — Charts
 
 ---
 
@@ -31,7 +33,7 @@
 
 **Build:** start and end work sessions, a live timer, daily/weekly/monthly statistics, session history, monthly CSV and PDF export, an hourly rate with earnings (§9), daily/weekly/monthly hour targets with progress and pace (§10), localStorage persistence, a mobile-friendly UI.
 
-**Don't build unless I ask:** backend, API, database, auth, cloud sync or backup, multiple users or jobs, taxes, currency conversion, PWA, dark mode. (Editing sessions and overtime moved into scope: §11, Phase 13.)
+**Don't build unless I ask:** backend, API, database, auth, cloud sync or backup, multiple users or jobs, taxes, currency conversion, PWA, dark mode. (Editing sessions and overtime moved into scope: §11, Phase 15.)
 
 ## 2. Data model
 
@@ -177,7 +179,7 @@ jsPDF's built-in fonts can't show Turkish letters like ş, ğ, ı, or Arabic tex
 
 
 ## 8. Languages
-The UI, CSV, and PDF text stays English (§4). The app must work correctly when the browser or phone language is Arabic, Turkish, or English: same date and time formats, normal digits (0–9), and a PDF without broken characters. No translation and no language switcher.
+The UI is in English or Arabic (§13). Until Phase 14, the CSV and PDF stay English (§4). The app must work correctly when the browser or phone language is Arabic, Turkish, or English: normal digits (0–9) everywhere, and a PDF without broken characters.
 
 
 
@@ -297,6 +299,80 @@ Fixes mistakes: a forgotten End Work, an accidental start, or a session the empl
 - Session History gets an `Add session` button in its header, and `Edit` and `Delete` buttons on every row (table and mobile rows). Buttons are at least 44px tall to tap easily.
 - The form opens at the top of Session History. Only one form at a time.
 - Stats, progress, exports, and history update right away after a change.
+
+## 12. Backup and restore
+
+Browser data is lost when someone clears site data or changes phone. A backup file keeps it safe and moves it to another browser or device.
+
+**Backup file**
+- Name: `work-tracker-backup-YYYY-MM-DD.json` (local date of the download).
+- Content (pretty-printed JSON):
+
+```json
+{
+  "app": "work-hours-tracker",
+  "version": 1,
+  "exportedAt": "2026-10-06T09:15:00.000Z",
+  "sessions": [ /* WorkSession[] */ ],
+  "paySettings": { "hourlyRate": 25, "currency": "TRY" },
+  "workTargets": { "dailyHours": 10, "daysOffPerMonth": 2 }
+}
+```
+
+- The running session is **not** included: it isn't a finished session yet. While working, the card says: "The running session is saved in the backup after you end it."
+- Download works like the CSV: a `Blob` and a temporary `<a download>` link.
+
+**Restore**
+1. The user picks a `.json` file. Larger than 5 MB → error, nothing changes.
+2. The file is checked:
+   - Not JSON, or `app` is not `"work-hours-tracker"` → "This is not a Work Hours Tracker backup."
+   - `version` is not `1` → "This backup was made by a newer version of the app."
+   - `sessions` must be an array. Invalid sessions are skipped (same rules as storage, §2). Duplicate ids: the first one is kept.
+   - `paySettings` and `workTargets` use the storage parsers: invalid fields fall back to the defaults.
+3. A preview shows what's in the file and asks for confirmation:
+   "This backup has **42 sessions** (01 Sep 2026 – 05 Oct 2026). Restoring **replaces** all current data (12 sessions, pay settings, and targets)." If any sessions were skipped: "3 invalid sessions will be skipped."
+   Buttons: `Replace my data` and `Cancel`.
+4. Restore always **replaces**; it never merges. (Merging could create overlapping sessions.)
+5. Restore is not possible while a session is running: "End the running session before restoring."
+
+**Safe writes**
+- Restore writes sessions, pay settings, and targets. If any write fails, the old values are written back, and an error shows: "Could not restore. Your data was not changed."
+- After a restore, every view updates right away (the storage event already does this).
+
+**UI**
+- A "Backup" card below the export card: `Download backup` and `Restore from file` buttons, the preview, and inline errors and a success message ("Restored 42 sessions.").
+- `Download backup` works with 0 sessions too (it still saves the pay settings and targets).
+
+## 13. Arabic UI
+
+**Choosing the language**
+- An `EN | عربي` switch in the header. The chosen button shows as pressed.
+- First visit (nothing saved): Arabic if the browser's first language starting with `ar` comes before any `en`; otherwise English. In practice: an Arabic phone gets Arabic.
+- The choice is saved in localStorage key `ui_language` (`"en"` or `"ar"`). Any other value counts as missing. It is not part of the backup.
+- The server render and the first client render use English. The saved or detected language applies right after hydration (a short flash of English is acceptable).
+
+**Right to left**
+- In Arabic, the page uses `dir="rtl"` and `lang="ar"` (on `<html>` and the page root). Layout mirrors: use start/end CSS (`ms-auto`, `text-end`, `ps-4`, `end-4`), never left/right, for anything that should flip.
+- Times, time ranges, and `HH:mm (+1)` are shown in a left-to-right span so `(+1)` and colons don't flip.
+- Letter spacing is turned off in Arabic: it breaks the joined Arabic letters.
+- Font: Noto Sans Arabic through `next/font` (downloaded at build time, served from the app; no runtime request to Google).
+
+**Formats in Arabic** (digits are always 0–9)
+
+| Value | English | Arabic |
+|---|---|---|
+| Date | `07 Oct 2026` | `07 أكتوبر 2026` |
+| Month | `October 2026` | `أكتوبر 2026` |
+| Duration | `8h 05m` | `8س 05د` |
+| Time, timer, money, percent | same in both: `09:05`, `04:32:18`, `1,250.00 TRY`, `85%` | |
+
+Month names: يناير، فبراير، مارس، أبريل، مايو، يونيو، يوليو، أغسطس، سبتمبر، أكتوبر، نوفمبر، ديسمبر.
+
+**What is translated**
+- Every visible text, button, label, hint, error, and screen-reader label.
+- Error messages from `src/lib` stay codes there; the UI turns codes into text in the chosen language.
+- Arabic counts use the right plural form (for example `جلسة واحدة`, `جلستان`, `3 جلسات`, `11 جلسة`).
+- Not translated: currency codes (TRY, USD…), the page `<title>`, and the CSV and PDF (Phase 14).
 
 ---
 
@@ -440,21 +516,44 @@ Tests must include: End before Start → next day; End = Start → error; a futu
 **Manual checks:** add a session for yesterday → it shows in history and the cards; edit it to cross midnight → `(+1)` and the duration are right; try an overlapping time → inline error; delete it → it's gone after the confirm; with two tabs open, a change in one shows in the other.
 
 ## Phase 12 — Backup and restore (JSON)
-Spec to be written before the phase starts. Download all data (sessions, pay settings, targets) as one JSON file; restore it with checks and a clear warning before replacing data.
+- [x] `src/lib/download.ts`: one shared download helper (Blob + temporary link). `downloadCsv` uses it.
+- [x] `src/lib/backup.ts` with tests: build the backup text, file name, parse and check a backup file (error codes and messages), and the preview summary.
+- [x] `storage.ts`: `restoreAll` writes all three keys and rolls back on a failed write. Tests.
+- [x] `useWorkTracker` exposes `restoreBackup`.
+- [x] UI: `BackupCard`.
 
-## Phase 13 — Overtime
+Tests must include: a round trip (build → parse gives the same data); not JSON; wrong `app`; `version: 2`; `sessions` not an array; invalid and duplicate sessions skipped and counted; bad pay settings/targets fall back to defaults; the preview's count and date range, and 0 sessions; a failed write rolls back all three keys; the file name uses the local date.
+
+**Done when:** the four commands pass.
+**Manual checks:** download a backup and open it (readable JSON); change some data, restore the file → everything is back; restore a non-backup file → error, nothing changed; start a session → restore is blocked; restore on another browser → same data there.
+
+## Phase 13 — Arabic UI
+- [x] `src/lib/i18n.ts` with tests: locale type, read a saved locale, detect from browser languages, English and Arabic messages (same keys, checked by TypeScript), Arabic plurals.
+- [x] `time.ts` and `progress.ts` formatters take a `locale` (default English, so CSV and PDF don't change). Tests for Arabic dates, months, durations, and pace; no Arabic-Indic digits.
+- [x] Error texts move out of `sessionEdit.ts`, `backup.ts`, and the hook into the messages; those return codes.
+- [x] `storage.ts`: `ui_language` read/parse/save, in the storage subscription. Tests.
+- [x] `useWorkTracker` exposes `locale` and `setLocale`.
+- [x] UI: language switch, all components translated, start/end CSS, `dir`/`lang`, Arabic font, no letter spacing in Arabic.
+
+**Done when:** the four commands pass.
+**Manual checks:** switch to عربي → every text is Arabic and the layout mirrors; refresh → still Arabic; an Arabic browser opens in Arabic the first time; dates, durations, `(+1)`, and money read correctly; forms, errors, delete confirm, and backup preview are Arabic; at 375px no horizontal scroll; switch back → English as before.
+
+## Phase 14 — Arabic exports (CSV and PDF)
+Spec to be written before the phase starts. CSV headers and PDF text in the chosen language. The PDF needs an embedded Arabic font and right-to-left text in jsPDF.
+
+## Phase 15 — Overtime
 Spec to be written before the phase starts. Time above the daily target counts as overtime, paid at a multiplier (e.g. 1.5×). Shown on the cards, in the CSV, and in the PDF.
 
-## Phase 14 — Notes on sessions
+## Phase 16 — Notes on sessions
 Spec to be written before the phase starts. An optional short note per session, set when ending or in the session form. Shown in history, CSV, and PDF.
 
-## Phase 15 — Mark days off by hand
+## Phase 17 — Mark days off by hand
 Spec to be written before the phase starts. Plan leave days ahead. Marked days count as days off in §10, before the automatic empty days.
 
-## Phase 16 — Reminders
+## Phase 18 — Reminders
 Spec to be written before the phase starts. In-app warnings: a session that runs very long ("forgot to end?"), and falling behind pace.
 
-## Phase 17 — Charts
+## Phase 19 — Charts
 Spec to be written before the phase starts. Hours per day for the week and month with the target line. Hand-made SVG (no chart library).
 
 ## Definition of Done
@@ -484,6 +583,9 @@ Add a line whenever a decision changes or extends the spec.
 | 2026-10-04 | App stays local-only. Added Phases 11–17: edit/delete/add, backup, overtime, notes, manual days off, reminders, charts | Chosen by the user; SaaS stays in Ideas |
 | 2026-10-04 | Editing, deleting, and adding sessions is now in scope (§11); it was in "Don't build" | Requested by the user |
 | 2026-10-04 | The session form uses the browser's date and time pickers. Their stored values are always `YYYY-MM-DD` and `HH:mm`; only the picker's look follows the phone language | Native pickers are much easier on phones |
+| 2026-10-06 | Backup restore always replaces (no merge), skips the running session, and is blocked while working | Merging can create overlaps; a running session in an old file would show a wrong timer |
+| 2026-10-07 | Arabic UI added (§13, Phase 13) with an EN / عربي switch; first visit follows the browser language; digits stay 0–9. Replaces the 2026-10-03 "no translated UI" decision | Requested by the user |
+| 2026-10-07 | Arabic exports are a separate phase (14): the PDF needs an embedded Arabic font and right-to-left text | Keeps the UI work small and safe |
 
 ## Ideas (not in scope)
 Ideas that come up during the build go here, not into the code.

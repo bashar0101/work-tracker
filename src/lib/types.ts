@@ -17,6 +17,13 @@ export interface PaySettings {
   currency: Currency;
 }
 
+/** Everything a backup holds (§12). The running session is not included. */
+export interface AppData {
+  sessions: WorkSession[];
+  paySettings: PaySettings;
+  workTargets: WorkTargets;
+}
+
 export interface WorkTargets {
   dailyHours: number; // more than 0, up to 24, up to 2 decimals (8.5 = 8h 30m)
   daysOffPerMonth: number; // whole number, 0 to 10

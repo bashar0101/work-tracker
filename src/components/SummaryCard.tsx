@@ -80,7 +80,7 @@ export default function SummaryCard({
               className="flex flex-wrap justify-between gap-x-3"
             >
               <dt className="text-slate-600">{row.label}</dt>
-              <dd className="ml-auto whitespace-nowrap text-right font-semibold tabular-nums text-slate-900">
+              <dd className="ms-auto whitespace-nowrap text-end font-semibold tabular-nums text-slate-900">
                 {row.value}
               </dd>
             </div>

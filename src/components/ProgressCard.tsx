@@ -7,6 +7,7 @@ import {
   type Progress,
 } from "@/lib/progress";
 import { formatDuration } from "@/lib/time";
+import { useI18n } from "./I18n";
 import { GaugeIcon } from "./icons";
 
 interface ProgressCardProps {
@@ -38,6 +39,7 @@ function ProgressRow({
   progress: Progress;
   color: keyof typeof BAR_FILL;
 }) {
+  const { locale, m } = useI18n();
   const percentText = formatPercent(progress.percent);
   // The bar stops at full; the text can show more than 100%.
   const width = Math.min(100, Math.max(0, progress.percent ?? 0));
@@ -46,16 +48,16 @@ function ProgressRow({
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <span className="text-sm font-semibold text-slate-700">{label}</span>
-        <span className="ml-auto text-sm tabular-nums text-slate-600">
+        <span className="ms-auto text-sm tabular-nums text-slate-600">
           <span className="font-semibold text-slate-900">
-            {formatDuration(progress.workedMinutes)}
+            {formatDuration(progress.workedMinutes, locale)}
           </span>{" "}
-          / {formatDuration(progress.targetMinutes)}
+          / {formatDuration(progress.targetMinutes, locale)}
         </span>
       </div>
       <div
         role="progressbar"
-        aria-label={`${label}: ${percentText} of target`}
+        aria-label={m.progress.ofTarget(label, percentText)}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={width}
@@ -68,10 +70,10 @@ function ProgressRow({
       </div>
       <div className="flex flex-wrap justify-between gap-x-3 text-xs tabular-nums text-slate-500">
         <span>{percentText}</span>
-        <span className="ml-auto">
+        <span className="ms-auto">
           {progress.targetMinutes > 0 && progress.remainingMinutes === 0
-            ? "Target reached"
-            : `${formatDuration(progress.remainingMinutes)} left`}
+            ? m.progress.targetReached
+            : m.progress.left(formatDuration(progress.remainingMinutes, locale))}
         </span>
       </div>
     </div>
@@ -86,22 +88,24 @@ export default function ProgressCard({
   month,
   pace,
 }: ProgressCardProps) {
+  const { locale, m } = useI18n();
+  const p = m.progress;
   const rows = [
-    { label: "Expected by now", value: formatDuration(pace.expectedMinutes) },
+    { label: p.expected, value: formatDuration(pace.expectedMinutes, locale) },
     {
-      label: "Needed per day",
-      value: formatOptionalDuration(pace.neededPerDayMinutes),
+      label: p.neededPerDay,
+      value: formatOptionalDuration(pace.neededPerDayMinutes, locale),
     },
     {
-      label: "Month-end projection",
-      value: formatOptionalDuration(pace.projectedMinutes),
+      label: p.projection,
+      value: formatOptionalDuration(pace.projectedMinutes, locale),
     },
     {
-      label: "Days off left",
-      value: `${pace.daysOffLeft} of ${pace.daysOffAllowed}`,
+      label: p.daysOffLeft,
+      value: p.daysOffValue(pace.daysOffLeft, pace.daysOffAllowed),
     },
     ...(pace.missedDays > 0
-      ? [{ label: "Missed days", value: String(pace.missedDays) }]
+      ? [{ label: p.missedDays, value: String(pace.missedDays) }]
       : []),
   ];
 
@@ -118,25 +122,25 @@ export default function ProgressCard({
           id="progress-heading"
           className="text-lg font-semibold tracking-tight text-slate-900"
         >
-          Progress
+          {p.title}
         </h2>
       </div>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-        <ProgressRow label="Today" progress={today} color="sky" />
-        <ProgressRow label="This Week" progress={week} color="violet" />
-        <ProgressRow label="This Month" progress={month} color="amber" />
+        <ProgressRow label={m.cards.today} progress={today} color="sky" />
+        <ProgressRow label={m.cards.thisWeek} progress={week} color="violet" />
+        <ProgressRow label={m.cards.thisMonth} progress={month} color="amber" />
       </div>
 
       <div className="flex flex-col gap-3 border-t border-slate-100 pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-600">
-            Pace this month
+            {p.paceTitle}
           </h3>
           <span
             className={`rounded-full px-3 py-1 text-sm font-semibold tabular-nums ring-1 ${PACE_BADGE[pace.status]}`}
           >
-            {formatPace(pace)}
+            {formatPace(pace, locale)}
           </span>
         </div>
         <dl className="grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
@@ -146,7 +150,7 @@ export default function ProgressCard({
               className="flex flex-wrap justify-between gap-x-3"
             >
               <dt className="text-slate-600">{row.label}</dt>
-              <dd className="ml-auto whitespace-nowrap text-right font-semibold tabular-nums text-slate-900">
+              <dd className="ms-auto whitespace-nowrap text-end font-semibold tabular-nums text-slate-900">
                 {row.value}
               </dd>
             </div>

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ACTIVE_SESSION_KEY,
   DEFAULT_PAY_SETTINGS,
+  LOCALE_KEY,
   PAY_SETTINGS_KEY,
   SESSIONS_KEY,
   STORAGE_CHANGE_EVENT,
@@ -20,7 +21,10 @@ import {
   readPaySettingsRaw,
   readSessionsRaw,
   readWorkTargetsRaw,
+  readLocaleRaw,
+  restoreAll,
   saveActiveSession,
+  saveLocale,
   savePaySettings,
   saveSessions,
   saveWorkTargets,
@@ -375,6 +379,101 @@ describe("browser storage", () => {
     expect(storage.getItem(WORK_TARGETS_KEY)).toBe(JSON.stringify(targets));
     expect(parseWorkTargets(readWorkTargetsRaw())).toEqual(targets);
     expect(WORK_TARGETS_KEY).toBe("work_targets");
+  });
+
+  describe("restoreAll (§12)", () => {
+    const data = {
+      sessions: [valid, nightShift],
+      paySettings: { hourlyRate: 25, currency: "USD" as const },
+      workTargets: { dailyHours: 8, daysOffPerMonth: 4 },
+    };
+
+    it("replaces all three keys and notifies once", () => {
+      const storage = new FakeStorage();
+      storage.setItem(SESSIONS_KEY, JSON.stringify([valid]));
+      const win = stubWindow(storage);
+      const listener = vi.fn();
+      win.addEventListener(STORAGE_CHANGE_EVENT, listener);
+
+      expect(restoreAll(data)).toBe(true);
+      expect(getSessions()).toEqual([valid, nightShift]);
+      expect(getPaySettings()).toEqual(data.paySettings);
+      expect(parseWorkTargets(readWorkTargetsRaw())).toEqual(data.workTargets);
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it("rolls back all keys when a write fails", () => {
+      const storage = new FakeStorage();
+      storage.setItem(SESSIONS_KEY, JSON.stringify([valid]));
+      // No pay settings stored yet: the rollback must remove the key again.
+      storage.setItem(WORK_TARGETS_KEY, '{"dailyHours":9,"daysOffPerMonth":1}');
+      const before = {
+        sessions: storage.getItem(SESSIONS_KEY),
+        pay: storage.getItem(PAY_SETTINGS_KEY),
+        targets: storage.getItem(WORK_TARGETS_KEY),
+      };
+      const realSet = storage.setItem.bind(storage);
+      let calls = 0;
+      storage.setItem = (key: string, value: string) => {
+        calls += 1;
+        // Sessions and pay settings are written; the targets write fails.
+        if (calls === 3) throw new DOMException("full", "QuotaExceededError");
+        realSet(key, value);
+      };
+      const win = stubWindow(storage);
+      const listener = vi.fn();
+      win.addEventListener(STORAGE_CHANGE_EVENT, listener);
+
+      expect(restoreAll(data)).toBe(false);
+      expect(storage.getItem(SESSIONS_KEY)).toBe(before.sessions);
+      expect(storage.getItem(PAY_SETTINGS_KEY)).toBe(before.pay);
+      expect(before.pay).toBeNull();
+      expect(storage.getItem(WORK_TARGETS_KEY)).toBe(before.targets);
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it("returns false when there is no window or reading fails", () => {
+      expect(restoreAll(data)).toBe(false);
+      const storage = new FakeStorage();
+      storage.getItem = () => {
+        throw new DOMException("denied", "SecurityError");
+      };
+      stubWindow(storage);
+      expect(restoreAll(data)).toBe(false);
+    });
+
+    it("stores only known fields", () => {
+      const storage = new FakeStorage();
+      stubWindow(storage);
+      const extra = { ...valid, extra: 1 } as WorkSession;
+      restoreAll({ ...data, sessions: [extra] });
+      expect(storage.getItem(SESSIONS_KEY)).toBe(JSON.stringify([valid]));
+    });
+  });
+
+  it("saves the UI language as a plain string under its own key (§13)", () => {
+    const storage = new FakeStorage();
+    const win = stubWindow(storage);
+    const listener = vi.fn();
+    win.addEventListener(STORAGE_CHANGE_EVENT, listener);
+    expect(readLocaleRaw()).toBeNull();
+    expect(saveLocale("ar")).toBe(true);
+    expect(storage.getItem(LOCALE_KEY)).toBe("ar");
+    expect(readLocaleRaw()).toBe("ar");
+    expect(LOCALE_KEY).toBe("ui_language");
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("the backup restore doesn't touch the UI language", () => {
+    const storage = new FakeStorage();
+    storage.setItem(LOCALE_KEY, "ar");
+    stubWindow(storage);
+    restoreAll({
+      sessions: [],
+      paySettings: DEFAULT_PAY_SETTINGS,
+      workTargets: { dailyHours: 10, daysOffPerMonth: 2 },
+    });
+    expect(storage.getItem(LOCALE_KEY)).toBe("ar");
   });
 
   it("uses the two separate keys", () => {

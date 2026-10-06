@@ -23,6 +23,7 @@ export interface SessionTimes {
   endsNextDay: boolean;
 }
 
+/** Error codes; the UI shows them with `MESSAGES[locale].form.errors`. */
 export type SessionErrorCode =
   | "invalid"
   | "same-time"
@@ -30,17 +31,6 @@ export type SessionErrorCode =
   | "overlap"
   | "overlaps-active"
   | "not-found";
-
-export const SESSION_ERROR_MESSAGES: Record<SessionErrorCode, string> = {
-  invalid: "Enter a valid date, start time, and end time.",
-  "same-time": "End time must be different from start time.",
-  future: "The session can't end in the future.",
-  overlap: "This time overlaps another session.",
-  "overlaps-active":
-    "This time overlaps the running session. It must end before the running session started.",
-  "not-found":
-    "This session no longer exists. It may have been deleted in another tab.",
-};
 
 export type SessionFormResult =
   | { ok: true; times: SessionTimes }

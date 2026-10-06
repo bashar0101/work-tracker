@@ -10,6 +10,7 @@
 //   day off, up to the monthly allowance. More empty days are "missed".
 // - Today is still in progress: it is never a day off and is not expected yet.
 
+import { MESSAGES, type Locale } from "./i18n";
 import { totalsByDate } from "./statistics";
 import {
   daysInMonth,
@@ -207,17 +208,22 @@ export function formatPercent(percent: number | null): string {
 }
 
 /** A duration, or `-` when there is none. */
-export function formatOptionalDuration(minutes: number | null): string {
-  return minutes === null ? NO_VALUE : formatDuration(minutes);
+export function formatOptionalDuration(
+  minutes: number | null,
+  locale: Locale = "en",
+): string {
+  return minutes === null ? NO_VALUE : formatDuration(minutes, locale);
 }
 
-/** `On track`, `Ahead by 4h 30m`, or `Behind by 4h 30m`. */
+/** `On track`, `Ahead by 4h 30m`, or `Behind by 4h 30m` (or Arabic). */
 export function formatPace(
   pace: Pick<MonthPace, "status" | "differenceMinutes">,
+  locale: Locale = "en",
 ): string {
-  if (pace.status === "on-track") return "On track";
-  const label = pace.status === "ahead" ? "Ahead by" : "Behind by";
-  return `${label} ${formatDuration(Math.abs(pace.differenceMinutes))}`;
+  const m = MESSAGES[locale].progress;
+  if (pace.status === "on-track") return m.onTrack;
+  const duration = formatDuration(Math.abs(pace.differenceMinutes), locale);
+  return pace.status === "ahead" ? m.aheadBy(duration) : m.behindBy(duration);
 }
 
 /**

@@ -4,6 +4,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { formatMoney, liveEarningsCents } from "@/lib/earnings";
 import { formatTimer } from "@/lib/time";
 import type { Currency } from "@/lib/types";
+import { useI18n } from "./I18n";
 import { BanknoteIcon } from "./icons";
 
 interface TimerProps {
@@ -31,6 +32,7 @@ function getNowSeconds(): number {
 }
 
 export default function Timer({ startTime, hourlyRate, currency }: TimerProps) {
+  const { m } = useI18n();
   const startMs = Date.parse(startTime);
   const getServerSeconds = useCallback(
     () => Math.floor(startMs / 1000),
@@ -50,6 +52,7 @@ export default function Timer({ startTime, hourlyRate, currency }: TimerProps) {
       <p
         role="timer"
         aria-live="off"
+        dir="ltr"
         className="font-mono text-5xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-7xl"
       >
         {formatTimer(elapsedMs)}
@@ -57,7 +60,7 @@ export default function Timer({ startTime, hourlyRate, currency }: TimerProps) {
       {hourlyRate !== null && (
         <p className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-full bg-white/70 px-3 py-1 text-sm ring-1 ring-emerald-600/15">
           <BanknoteIcon className="size-4 text-emerald-600" />
-          <span className="text-slate-600">Earned so far</span>
+          <span className="text-slate-600">{m.status.earnedSoFar}</span>
           <span className="font-semibold tabular-nums text-emerald-800">
             {formatMoney(liveEarningsCents(elapsedMs, hourlyRate), currency)}
           </span>

@@ -1,4 +1,5 @@
 import type { TrackerStatus } from "@/hooks/useWorkTracker";
+import { useI18n } from "./I18n";
 import { PlayIcon, StopIcon } from "./icons";
 
 interface WorkControlsProps {
@@ -18,6 +19,7 @@ export default function WorkControls({
   onStart,
   onEnd,
 }: WorkControlsProps) {
+  const { m } = useI18n();
   if (status === "loading") {
     // A neutral placeholder: never a clickable Start button before load.
     return (
@@ -28,7 +30,7 @@ export default function WorkControls({
           aria-busy="true"
           className={`${BASE} cursor-not-allowed bg-slate-200 text-slate-600`}
         >
-          Loading…
+          {m.loading}
         </button>
       </div>
     );
@@ -52,7 +54,7 @@ export default function WorkControls({
         ) : (
           <PlayIcon className="size-5" />
         )}
-        {working ? "End Work" : "Start Work"}
+        {working ? m.controls.end : m.controls.start}
       </button>
     </div>
   );

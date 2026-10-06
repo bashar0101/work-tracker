@@ -22,7 +22,7 @@ A single-page Next.js app for tracking work sessions: start and end a session, a
 Next.js (App Router, `src/` directory, `@/*` import alias), React, TypeScript, Tailwind CSS v4. Tailwind v4 is configured in `globals.css`. There is no `tailwind.config.js`; don't create one.
 
 ## Architecture
-- `src/lib/` — all logic, in plain TypeScript with no React: `types.ts`, `time.ts`, `storage.ts`, `sessions.ts`, `sessionEdit.ts` (edit, delete, and add sessions, §11), `statistics.ts`, `earnings.ts` (hourly rate and money, §9), `progress.ts` (hour targets, progress, and pace, §10), `exportCsv.ts`, `exportPdf.ts`. Tests sit next to the code as `*.test.ts`.
+- `src/lib/` — all logic, in plain TypeScript with no React: `types.ts`, `time.ts`, `storage.ts`, `sessions.ts`, `sessionEdit.ts` (edit, delete, and add sessions, §11), `statistics.ts`, `earnings.ts` (hourly rate and money, §9), `progress.ts` (hour targets, progress, and pace, §10), `exportCsv.ts`, `exportPdf.ts`, `backup.ts` (backup and restore, §12), `download.ts` (shared file download), `i18n.ts` (English and Arabic messages, §13). Tests sit next to the code as `*.test.ts`.
 - `src/hooks/useWorkTracker.ts` — the only bridge between React and storage.
 - `src/components/` — UI only. Data comes in through props; actions go out through callbacks. No business logic: call functions from `src/lib/`.
 - `src/app/page.tsx` stays a Server Component that renders the client `<Dashboard />`.
@@ -33,6 +33,13 @@ Next.js (App Router, `src/` directory, `@/*` import alias), React, TypeScript, T
 - Days, weeks, and months use the device's local time. Build `YYYY-MM-DD` keys from `getFullYear()`, `getMonth()`, and `getDate()`. Never use `toISOString().slice(0, 10)`: that is the UTC date, and it puts sessions near midnight on the wrong day.
 - Functions in `src/lib/` that need the current time take `now: Date` as a parameter. They don't read the clock themselves.
 - Format every date, time, and duration with the helpers in `src/lib/time.ts` (formats: PROJECT_PLAN.md §4). Never use `toLocaleString()`, `toLocaleDateString()`, or `toLocaleTimeString()`: their output changes with the browser language, and Turkish or Arabic text breaks jsPDF's built-in font.
+
+## Language rules (English and Arabic UI, PROJECT_PLAN.md §13)
+- Every visible text, label, and screen-reader label comes from `MESSAGES` in `src/lib/i18n.ts` through `useI18n()`. Add a new text to both `en` and `ar`; TypeScript fails if one is missing.
+- `src/lib` returns error codes, not sentences. The UI turns codes into text.
+- UI formatters get the `locale`: `formatDate(date, locale)`, `formatDuration(minutes, locale)`. CSV and PDF call them without it (English).
+- Digits are always 0–9, also in Arabic.
+- Use start/end CSS (`ms-auto`, `text-end`, `ps-4`, `end-4`), never left/right, for anything that should mirror in Arabic. Wrap times and `HH:mm (+1)` in `<Ltr>`.
 
 ## React rules
 - `localStorage` exists only in the browser. Never touch it on the server or at module level. `useWorkTracker` reads it with `useSyncExternalStore` (details: PROJECT_PLAN.md, Phase 3).
