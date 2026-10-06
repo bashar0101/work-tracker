@@ -4,6 +4,14 @@
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { createSession } from "@/lib/sessions";
 import {
+  addSessionFromForm,
+  removeSession,
+  SESSION_ERROR_MESSAGES,
+  updateSessionFromForm,
+  type SessionEditResult,
+  type SessionFormValues,
+} from "@/lib/sessionEdit";
+import {
   clearActiveSession,
   getActiveSession,
   getPaySettings,
@@ -45,11 +53,23 @@ export interface WorkTracker {
   workTargets: WorkTargets;
   /** Saves the targets. Returns false (and sets `error`) on failure. */
   saveWorkTargets: (targets: WorkTargets) => boolean;
+  /** Adds a session from the form (§11). Returns an error message or `null`. */
+  addSession: (values: SessionFormValues) => string | null;
+  /** Changes a session's times (§11). Returns an error message or `null`. */
+  updateSession: (id: string, values: SessionFormValues) => string | null;
+  /** Deletes a session. Returns false (and sets `error`) on failure. */
+  deleteSession: (id: string) => boolean;
   error: string | null;
 }
 
 const SAVE_ERROR =
   "Could not save. Your browser storage may be full or blocked.";
+
+/** Saves a successful edit. Returns an error message or `null`. */
+function saveEdit(result: SessionEditResult): string | null {
+  if (!result.ok) return SESSION_ERROR_MESSAGES[result.error];
+  return saveSessions(result.sessions) ? null : SAVE_ERROR;
+}
 
 function noopSubscribe(): () => void {
   return () => {};
@@ -147,6 +167,46 @@ export function useWorkTracker(): WorkTracker {
     return ok;
   }, []);
 
+  // Edits re-read storage first, so another tab's changes are never lost
+  // or overlapped. Rule errors show in the form; only a failed write also
+  // sets the page error.
+  const addSession = useCallback((values: SessionFormValues) => {
+    const message = saveEdit(
+      addSessionFromForm(
+        getSessions(),
+        values,
+        getActiveSession(),
+        new Date(),
+        getPaySettings().hourlyRate,
+      ),
+    );
+    setError(message === SAVE_ERROR ? SAVE_ERROR : null);
+    return message;
+  }, []);
+
+  const updateSession = useCallback(
+    (id: string, values: SessionFormValues) => {
+      const message = saveEdit(
+        updateSessionFromForm(
+          getSessions(),
+          id,
+          values,
+          getActiveSession(),
+          new Date(),
+        ),
+      );
+      setError(message === SAVE_ERROR ? SAVE_ERROR : null);
+      return message;
+    },
+    [],
+  );
+
+  const deleteSession = useCallback((id: string): boolean => {
+    const ok = saveSessions(removeSession(getSessions(), id));
+    setError(ok ? null : SAVE_ERROR);
+    return ok;
+  }, []);
+
   let status: TrackerStatus = "loading";
   if (loaded) status = activeSession ? "working" : "idle";
 
@@ -160,6 +220,9 @@ export function useWorkTracker(): WorkTracker {
     savePaySettings,
     workTargets,
     saveWorkTargets,
+    addSession,
+    updateSession,
+    deleteSession,
     error,
   };
 }

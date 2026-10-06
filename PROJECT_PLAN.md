@@ -15,6 +15,13 @@
 - [x] Phase 8 — Polish and final check
 - [x] Phase 9 — Hourly rate and earnings
 - [x] Phase 10 — Hour targets, progress, and pace
+- [ ] Phase 11 — Edit, delete, and add sessions
+- [ ] Phase 12 — Backup and restore (JSON)
+- [ ] Phase 13 — Overtime
+- [ ] Phase 14 — Notes on sessions
+- [ ] Phase 15 — Mark days off by hand
+- [ ] Phase 16 — Reminders
+- [ ] Phase 17 — Charts
 
 ---
 
@@ -24,7 +31,7 @@
 
 **Build:** start and end work sessions, a live timer, daily/weekly/monthly statistics, session history, monthly CSV and PDF export, an hourly rate with earnings (§9), daily/weekly/monthly hour targets with progress and pace (§10), localStorage persistence, a mobile-friendly UI.
 
-**Don't build unless I ask:** backend, API, database, auth, cloud sync or backup, multiple users or jobs, overtime rules, taxes, currency conversion, editing or deleting sessions, PWA, dark mode.
+**Don't build unless I ask:** backend, API, database, auth, cloud sync or backup, multiple users or jobs, taxes, currency conversion, PWA, dark mode. (Editing sessions and overtime moved into scope: §11, Phase 13.)
 
 ## 2. Data model
 
@@ -259,6 +266,38 @@ export interface WorkTargets {
 - Progress uses the same minute clock as the summary cards, so it changes at midnight.
 - Formats from §4. Never `NaN`. Progress and pace are not in the CSV or PDF.
 
+## 11. Edit, delete, and add sessions
+
+Fixes mistakes: a forgotten End Work, an accidental start, or a session the employee forgot to record. Only completed sessions can be changed; the running session can't.
+
+**The session form** (used for both Add and Edit)
+- Fields: `Date` (date picker), `Start` (time picker), `End` (time picker), and Save / Cancel buttons.
+- If End is earlier than Start, the session ends the next day. The form shows "Ends next day (+1)" and the duration live, e.g. `Duration: 8h 00m`.
+- Times are whole minutes. Editing a session rounds its times down to the minute.
+
+**Rules** (checked when saving; an error shows inline and nothing is saved)
+- Date, Start, and End must be filled in and valid.
+- End must not equal Start. (So the longest session is 23h 59m.)
+- The session must not end in the future.
+- It must not overlap another completed session (touching is fine: one ends 12:00, the next starts 12:00).
+- It must not overlap the running session: it must end before the running session's start.
+
+**Which rate**
+- Edit keeps the session's stored `hourlyRate`. Only the times change.
+- Add stores the current rate when one is set, like End Work (§9).
+
+**Delete**
+- Asks inline first: "Delete this session?" with Delete and Cancel. No browser `confirm()`. No undo.
+
+**Storage**
+- Every change re-reads `work_sessions` first and checks the rules against that fresh list, so another tab's changes are never lost or overlapped.
+- A failed write shows the usual inline error.
+
+**UI**
+- Session History gets an `Add session` button in its header, and `Edit` and `Delete` buttons on every row (table and mobile rows). Buttons are at least 44px tall to tap easily.
+- The form opens at the top of Session History. Only one form at a time.
+- Stats, progress, exports, and history update right away after a change.
+
 ---
 
 # Part 2 — Phases
@@ -390,6 +429,34 @@ Tests must include:
 **Done when:** the four commands pass.
 **Manual checks:** fill a month with a console snippet (some 10h days, some short days, 1–3 empty days) → bars, expected-by-now, ahead/behind, needed per day, projection, and days off match a hand calculation. Change the targets to 8h and 4 days off → everything updates. At 375px width there is no horizontal scroll.
 
+## Phase 11 — Edit, delete, and add sessions
+- [ ] `src/lib/sessionEdit.ts` with tests: read form values, build a session from them, the rules from §11 (with error codes and messages), and form values from an existing session.
+- [ ] `useWorkTracker`: `addSession`, `updateSession`, `deleteSession`. Each re-reads storage first.
+- [ ] UI: `SessionForm`; `Add session`, `Edit`, and `Delete` (with inline confirm) in `SessionHistory`.
+
+Tests must include: End before Start → next day; End = Start → error; a future end → error; overlap with another session → error; touching sessions → fine; editing a session doesn't overlap with itself; overlap with the running session → error; Edit keeps `hourlyRate`; Add stores the current rate; a session across midnight gets the right date and duration.
+
+**Done when:** the four commands pass.
+**Manual checks:** add a session for yesterday → it shows in history and the cards; edit it to cross midnight → `(+1)` and the duration are right; try an overlapping time → inline error; delete it → it's gone after the confirm; with two tabs open, a change in one shows in the other.
+
+## Phase 12 — Backup and restore (JSON)
+Spec to be written before the phase starts. Download all data (sessions, pay settings, targets) as one JSON file; restore it with checks and a clear warning before replacing data.
+
+## Phase 13 — Overtime
+Spec to be written before the phase starts. Time above the daily target counts as overtime, paid at a multiplier (e.g. 1.5×). Shown on the cards, in the CSV, and in the PDF.
+
+## Phase 14 — Notes on sessions
+Spec to be written before the phase starts. An optional short note per session, set when ending or in the session form. Shown in history, CSV, and PDF.
+
+## Phase 15 — Mark days off by hand
+Spec to be written before the phase starts. Plan leave days ahead. Marked days count as days off in §10, before the automatic empty days.
+
+## Phase 16 — Reminders
+Spec to be written before the phase starts. In-app warnings: a session that runs very long ("forgot to end?"), and falling behind pace.
+
+## Phase 17 — Charts
+Spec to be written before the phase starts. Hours per day for the week and month with the target line. Hand-made SVG (no chart library).
+
 ## Definition of Done
 - [ ] All phases are ticked, and the four commands pass.
 - [ ] Start and End work. The timer survives a refresh, a background tab, and a second tab.
@@ -414,11 +481,12 @@ Add a line whenever a decision changes or extends the spec.
 | 2026-10-04 | Added hour targets, progress, and pace (§10, Phase 10). Defaults: 10h a day, 2 days off a month, both editable | Requested by the user |
 | 2026-10-04 | Days off are automatic: empty past days, up to the monthly allowance. No "mark day off" button | Chosen by the user: no extra input for the employee |
 | 2026-10-04 | Weekly target is always 7 × daily target (70h); days off don't lower it | Chosen by the user |
+| 2026-10-04 | App stays local-only. Added Phases 11–17: edit/delete/add, backup, overtime, notes, manual days off, reminders, charts | Chosen by the user; SaaS stays in Ideas |
+| 2026-10-04 | Editing, deleting, and adding sessions is now in scope (§11); it was in "Don't build" | Requested by the user |
+| 2026-10-04 | The session form uses the browser's date and time pickers. Their stored values are always `YYYY-MM-DD` and `HH:mm`; only the picker's look follows the phone language | Native pickers are much easier on phones |
 
 ## Ideas (not in scope)
 Ideas that come up during the build go here, not into the code.
-- Delete or edit a session (fix a forgotten End Work or an accidental start).
-- Backup and restore all data as a JSON file.
 
 ### Toward a paid product (SaaS)
 Most of these need a backend, which the Hard rules in `CLAUDE.md` forbid today. Starting them means changing that rule on purpose, in a new version.

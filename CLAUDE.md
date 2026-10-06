@@ -22,7 +22,7 @@ A single-page Next.js app for tracking work sessions: start and end a session, a
 Next.js (App Router, `src/` directory, `@/*` import alias), React, TypeScript, Tailwind CSS v4. Tailwind v4 is configured in `globals.css`. There is no `tailwind.config.js`; don't create one.
 
 ## Architecture
-- `src/lib/` — all logic, in plain TypeScript with no React: `types.ts`, `time.ts`, `storage.ts`, `sessions.ts`, `statistics.ts`, `earnings.ts` (hourly rate and money, §9), `progress.ts` (hour targets, progress, and pace, §10), `exportCsv.ts`, `exportPdf.ts`. Tests sit next to the code as `*.test.ts`.
+- `src/lib/` — all logic, in plain TypeScript with no React: `types.ts`, `time.ts`, `storage.ts`, `sessions.ts`, `sessionEdit.ts` (edit, delete, and add sessions, §11), `statistics.ts`, `earnings.ts` (hourly rate and money, §9), `progress.ts` (hour targets, progress, and pace, §10), `exportCsv.ts`, `exportPdf.ts`. Tests sit next to the code as `*.test.ts`.
 - `src/hooks/useWorkTracker.ts` — the only bridge between React and storage.
 - `src/components/` — UI only. Data comes in through props; actions go out through callbacks. No business logic: call functions from `src/lib/`.
 - `src/app/page.tsx` stays a Server Component that renders the client `<Dashboard />`.

@@ -90,6 +90,9 @@ export default function Dashboard() {
     savePaySettings,
     workTargets,
     saveWorkTargets,
+    addSession,
+    updateSession,
+    deleteSession,
     error,
   } = useWorkTracker();
   const { hourlyRate, currency } = paySettings;
@@ -336,6 +339,9 @@ export default function Dashboard() {
           currentRate={hourlyRate}
           currency={currency}
           loading={status === "loading"}
+          onAdd={addSession}
+          onUpdate={updateSession}
+          onDelete={deleteSession}
         />
       </main>
     </div>
