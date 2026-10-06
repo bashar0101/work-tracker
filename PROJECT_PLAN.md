@@ -15,7 +15,7 @@
 - [x] Phase 8 — Polish and final check
 - [x] Phase 9 — Hourly rate and earnings
 - [x] Phase 10 — Hour targets, progress, and pace
-- [ ] Phase 11 — Edit, delete, and add sessions
+- [x] Phase 11 — Edit, delete, and add sessions
 - [ ] Phase 12 — Backup and restore (JSON)
 - [ ] Phase 13 — Overtime
 - [ ] Phase 14 — Notes on sessions
@@ -430,9 +430,9 @@ Tests must include:
 **Manual checks:** fill a month with a console snippet (some 10h days, some short days, 1–3 empty days) → bars, expected-by-now, ahead/behind, needed per day, projection, and days off match a hand calculation. Change the targets to 8h and 4 days off → everything updates. At 375px width there is no horizontal scroll.
 
 ## Phase 11 — Edit, delete, and add sessions
-- [ ] `src/lib/sessionEdit.ts` with tests: read form values, build a session from them, the rules from §11 (with error codes and messages), and form values from an existing session.
-- [ ] `useWorkTracker`: `addSession`, `updateSession`, `deleteSession`. Each re-reads storage first.
-- [ ] UI: `SessionForm`; `Add session`, `Edit`, and `Delete` (with inline confirm) in `SessionHistory`.
+- [x] `src/lib/sessionEdit.ts` with tests: read form values, build a session from them, the rules from §11 (with error codes and messages), and form values from an existing session.
+- [x] `useWorkTracker`: `addSession`, `updateSession`, `deleteSession`. Each re-reads storage first.
+- [x] UI: `SessionForm`; `Add session`, `Edit`, and `Delete` (with inline confirm) in `SessionHistory`.
 
 Tests must include: End before Start → next day; End = Start → error; a future end → error; overlap with another session → error; touching sessions → fine; editing a session doesn't overlap with itself; overlap with the running session → error; Edit keeps `hourlyRate`; Add stores the current rate; a session across midnight gets the right date and duration.
 
