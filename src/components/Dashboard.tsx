@@ -367,15 +367,15 @@ export default function Dashboard() {
             pdfError={pdfError}
             loading={status === "loading"}
           />
-
+        {/*
           <BackupCard
             currentSessionCount={sessions.length}
             working={status === "working"}
             loading={status === "loading"}
             onDownload={handleDownloadBackup}
             onRestore={restoreBackup}
-          />
-
+          /> 
+        */}
           <SessionHistory
             sessions={sessions}
             currentRate={hourlyRate}
